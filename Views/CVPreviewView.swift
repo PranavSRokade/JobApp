@@ -3,6 +3,7 @@ import PDFKit
 
 struct CVPreviewView: View {
     let jd: String
+    let jobId: Int
     @State var result: CVResult
 
     @State private var showShareOptions = false
@@ -56,7 +57,8 @@ struct CVPreviewView: View {
                     CVEditorView(
                         decisions: result.decisions,
                         pools: result.pools,
-                        jd: jd
+                        jd: jd,
+                        jobId: jobId
                     ) { newLatex, newPDF in
                         result.latex = newLatex
                         result.pdfData = newPDF

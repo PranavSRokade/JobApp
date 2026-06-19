@@ -9,6 +9,7 @@ struct JobDetailView: View {
     @State private var isGeneratingCV = false
     @State private var cvResult: CVResult? = nil
     @State private var cvError: String? = nil
+    @State private var showCVOptions = false
 
     private var isStarred: Bool { starredStore.isStarred(job.jobId) }
 
@@ -81,15 +82,10 @@ struct JobDetailView: View {
                 // Generate CV (Pranav only, requires a JD)
                 if profile == "spencer", let jd = job.jd {
                     Button {
-                        isGeneratingCV = true
-                        cvError = nil
-                        Task {
-                            do {
-                                cvResult = try await CVService.generateCV(jd: jd)
-                            } catch {
-                                cvError = error.localizedDescription
-                            }
-                            isGeneratingCV = false
+                        if CVCacheStore.load(for: job.jobId) != nil {
+                            showCVOptions = true
+                        } else {
+                            generateCV(jd: jd)
                         }
                     } label: {
                         Group {
@@ -110,6 +106,15 @@ struct JobDetailView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
                     .disabled(isGeneratingCV)
+                    .confirmationDialog("A CV was already generated for this job.", isPresented: $showCVOptions, titleVisibility: .visible) {
+                        Button("Use Saved CV") {
+                            cvResult = CVCacheStore.load(for: job.jobId)
+                        }
+                        Button("Generate New CV") {
+                            generateCV(jd: jd)
+                        }
+                        Button("Cancel", role: .cancel) {}
+                    }
 
                     if let err = cvError {
                         Text(err)
@@ -143,8 +148,23 @@ struct JobDetailView: View {
             set: { if !$0 { cvResult = nil } }
         )) {
             if let result = cvResult {
-                CVPreviewView(jd: job.jd ?? "", result: result)
+                CVPreviewView(jd: job.jd ?? "", jobId: job.jobId, result: result)
             }
+        }
+    }
+
+    private func generateCV(jd: String) {
+        isGeneratingCV = true
+        cvError = nil
+        Task {
+            do {
+                let result = try await CVService.generateCV(jd: jd)
+                CVCacheStore.save(result, for: job.jobId)
+                cvResult = result
+            } catch {
+                cvError = error.localizedDescription
+            }
+            isGeneratingCV = false
         }
     }
 }

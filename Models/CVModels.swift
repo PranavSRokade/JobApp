@@ -19,10 +19,18 @@ struct CVBulletEntry: Codable, Identifiable {
     var id: Int { index }
 }
 
+struct CVProjectOption: Codable, Identifiable {
+    let key: String
+    let title: String
+    var id: String { key }
+}
+
 struct CVBulletPools: Codable {
     let nHabit: [CVBulletEntry]
     let campConnection: [CVBulletEntry]
     let projexino: [CVBulletEntry]
+    let skillsArray: [String]
+    let projectOptions: [CVProjectOption]
 
     func pool(for company: CVCompany) -> [CVBulletEntry] {
         switch company {
@@ -53,9 +61,9 @@ enum CVCompany: String, CaseIterable {
     }
 }
 
-struct CVResult {
+struct CVResult: Codable {
     var latex: String
     var pdfData: Data
     var decisions: CVDecisions
-    let pools: CVBulletPools
+    var pools: CVBulletPools
 }
