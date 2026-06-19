@@ -11,6 +11,8 @@
 		095020452FE527AF00920FFC /* StarredJobsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 095020442FE527A000920FFC /* StarredJobsStore.swift */; };
 		095020472FE5314900920FFC /* CVService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 095020462FE5314900920FFC /* CVService.swift */; };
 		095020492FE5315400920FFC /* CVPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 095020482FE5315400920FFC /* CVPreviewView.swift */; };
+		0950204B2FE53F3F00920FFC /* CVEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0950204A2FE53F3F00920FFC /* CVEditorView.swift */; };
+		0950204D2FE53F4900920FFC /* CVModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0950204C2FE53F4900920FFC /* CVModels.swift */; };
 		09DC9A3E2FE40F7C00ECDB7A /* JobsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09DC9A352FE40F7C00ECDB7A /* JobsService.swift */; };
 		09DC9A3F2FE40F7C00ECDB7A /* ScoreBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09DC9A3C2FE40F7C00ECDB7A /* ScoreBadgeView.swift */; };
 		09DC9A402FE40F7C00ECDB7A /* Job.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09DC9A332FE40F7C00ECDB7A /* Job.swift */; };
@@ -27,6 +29,8 @@
 		095020442FE527A000920FFC /* StarredJobsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarredJobsStore.swift; sourceTree = "<group>"; };
 		095020462FE5314900920FFC /* CVService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CVService.swift; sourceTree = "<group>"; };
 		095020482FE5315400920FFC /* CVPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CVPreviewView.swift; sourceTree = "<group>"; };
+		0950204A2FE53F3F00920FFC /* CVEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CVEditorView.swift; sourceTree = "<group>"; };
+		0950204C2FE53F4900920FFC /* CVModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CVModels.swift; sourceTree = "<group>"; };
 		09DC9A232FE40F5A00ECDB7A /* JobApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JobApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		09DC9A312FE40F7C00ECDB7A /* JobTrackerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JobTrackerApp.swift; sourceTree = "<group>"; };
 		09DC9A332FE40F7C00ECDB7A /* Job.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Job.swift; sourceTree = "<group>"; };
@@ -90,6 +94,7 @@
 		09DC9A342FE40F7C00ECDB7A /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				0950204C2FE53F4900920FFC /* CVModels.swift */,
 				09DC9A332FE40F7C00ECDB7A /* Job.swift */,
 			);
 			path = Models;
@@ -116,6 +121,7 @@
 		09DC9A3D2FE40F7C00ECDB7A /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				0950204A2FE53F3F00920FFC /* CVEditorView.swift */,
 				095020482FE5315400920FFC /* CVPreviewView.swift */,
 				09DC9A482FE4181F00ECDB7A /* ManageSheetsView.swift */,
 				09DC9A392FE40F7C00ECDB7A /* JobDetailView.swift */,
@@ -209,6 +215,8 @@
 				09DC9A492FE4181F00ECDB7A /* ManageSheetsView.swift in Sources */,
 				09DC9A432FE40F7C00ECDB7A /* JobRowView.swift in Sources */,
 				09DC9A442FE40F7C00ECDB7A /* JobsListView.swift in Sources */,
+				0950204B2FE53F3F00920FFC /* CVEditorView.swift in Sources */,
+				0950204D2FE53F4900920FFC /* CVModels.swift in Sources */,
 				09DC9A452FE40F7C00ECDB7A /* JobDetailView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

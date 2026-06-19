@@ -2,19 +2,23 @@ import SwiftUI
 import PDFKit
 
 struct CVPreviewView: View {
-    let pdfData: Data
-    let latex: String
+    let jd: String
+    @State var result: CVResult
 
     @State private var showShareOptions = false
     @State private var shareItems: [Any]? = nil
+    @State private var showEditor = false
 
     var body: some View {
         NavigationStack {
-            PDFKitView(data: pdfData)
+            PDFKitView(data: result.pdfData)
                 .ignoresSafeArea(edges: .bottom)
                 .navigationTitle("Generated CV")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button("Edit") { showEditor = true }
+                    }
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button {
                             showShareOptions = true
@@ -26,14 +30,11 @@ struct CVPreviewView: View {
                 .confirmationDialog("Share as", isPresented: $showShareOptions, titleVisibility: .visible) {
                     Button("Share PDF") {
                         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("CV.pdf")
-                        try? pdfData.write(to: tempURL)
+                        try? result.pdfData.write(to: tempURL)
                         shareItems = [tempURL]
                     }
                     Button("Share Overleaf Link") {
-                        // Encode LaTeX as base64url in the URL fragment.
-                        // The fragment is never sent to the server, so no 414.
-                        // Our /overleaf page reads it client-side and form-POSTs to Overleaf.
-                        let b64 = Data(latex.utf8).base64EncodedString()
+                        let b64 = Data(result.latex.utf8).base64EncodedString()
                             .replacingOccurrences(of: "+", with: "-")
                             .replacingOccurrences(of: "/", with: "_")
                             .replacingOccurrences(of: "=", with: "")
@@ -49,6 +50,16 @@ struct CVPreviewView: View {
                 )) {
                     if let items = shareItems {
                         ActivityShareSheet(items: items)
+                    }
+                }
+                .sheet(isPresented: $showEditor) {
+                    CVEditorView(
+                        decisions: result.decisions,
+                        pools: result.pools,
+                        jd: jd
+                    ) { newLatex, newPDF in
+                        result.latex = newLatex
+                        result.pdfData = newPDF
                     }
                 }
         }
@@ -81,5 +92,7 @@ struct PDFKitView: UIViewRepresentable {
         return pdfView
     }
 
-    func updateUIView(_ uiView: PDFView, context: Context) {}
+    func updateUIView(_ uiView: PDFView, context: Context) {
+        uiView.document = PDFDocument(data: data)
+    }
 }

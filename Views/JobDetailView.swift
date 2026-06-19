@@ -143,7 +143,7 @@ struct JobDetailView: View {
             set: { if !$0 { cvResult = nil } }
         )) {
             if let result = cvResult {
-                CVPreviewView(pdfData: result.pdfData, latex: result.latex)
+                CVPreviewView(jd: job.jd ?? "", result: result)
             }
         }
     }
