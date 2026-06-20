@@ -12,6 +12,7 @@ struct CVEditorView: View {
     @State private var swapTarget: SwapTarget?
     @State private var showSkillsPicker = false
     @State private var showSummarySkillsPicker = false
+    @State private var showJD = false
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -25,12 +26,28 @@ struct CVEditorView: View {
                 companySection(.projexino)
             }
             .listStyle(.insetGrouped)
+            .environment(\.editMode, .constant(.active))
             .navigationTitle("Edit CV")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") { dismiss() }
                 }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        showJD = true
+                    } label: {
+                        Label("JD", systemImage: "doc.text")
+                            .labelStyle(.titleAndIcon)
+                            .font(.system(size: 13, weight: .medium))
+                    }
+                }
+            }
+            .sheet(isPresented: $showJD) {
+                JDQuickView(jd: jd)
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+                    .presentationBackgroundInteraction(.enabled(upThrough: .medium))
             }
             .safeAreaInset(edge: .bottom) { rebuildBar }
             .sheet(item: $swapTarget) { target in
@@ -41,12 +58,12 @@ struct CVEditorView: View {
                     title: "Skills Line",
                     subtitle: "These appear in the Skills section of your CV",
                     allSkills: pools.skillsArray,
-                    selected: Binding(
-                        get: { Set(decisions.skillsLine.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }) },
-                        set: { _ in }
-                    ),
-                    onDone: { selected in
-                        decisions.skillsLine = pools.skillsArray.filter { selected.contains($0) }.joined(separator: ", ")
+                    initialSelected: decisions.skillsLine
+                        .split(separator: ",")
+                        .map { $0.trimmingCharacters(in: .whitespaces) }
+                        .filter { !$0.isEmpty },
+                    onDone: { ordered in
+                        decisions.skillsLine = ordered.joined(separator: ", ")
                     }
                 )
             }
@@ -55,12 +72,9 @@ struct CVEditorView: View {
                     title: "Summary Skills",
                     subtitle: "Skills highlighted in your professional summary",
                     allSkills: pools.skillsArray,
-                    selected: Binding(
-                        get: { Set(decisions.skills) },
-                        set: { _ in }
-                    ),
-                    onDone: { selected in
-                        decisions.skills = pools.skillsArray.filter { selected.contains($0) }
+                    initialSelected: decisions.skills,
+                    onDone: { ordered in
+                        decisions.skills = ordered
                     }
                 )
             }
@@ -84,23 +98,21 @@ struct CVEditorView: View {
                 ))
                 .font(.system(size: 14))
             }
-            Button {
-                showSummarySkillsPicker = true
-            } label: {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Summary Skills")
-                            .font(.system(size: 14))
-                            .foregroundColor(.primary)
-                        Text(decisions.skills.isEmpty ? "None selected" : decisions.skills.joined(separator: ", "))
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .lineLimit(2)
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right").foregroundColor(.secondary).font(.caption)
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Summary Skills")
+                        .font(.system(size: 14))
+                        .foregroundColor(.primary)
+                    Text(decisions.skills.isEmpty ? "None selected" : decisions.skills.joined(separator: ", "))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
                 }
+                Spacer()
+                Image(systemName: "chevron.right").foregroundColor(.secondary).font(.caption)
             }
+            .contentShape(Rectangle())
+            .onTapGesture { showSummarySkillsPicker = true }
         } header: {
             Text("Professional Summary")
         }
@@ -110,23 +122,21 @@ struct CVEditorView: View {
 
     private var skillsSection: some View {
         Section {
-            Button {
-                showSkillsPicker = true
-            } label: {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Skills Line")
-                            .font(.system(size: 14))
-                            .foregroundColor(.primary)
-                        Text(decisions.skillsLine.isEmpty ? "None selected" : decisions.skillsLine)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .lineLimit(3)
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right").foregroundColor(.secondary).font(.caption)
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Skills Line")
+                        .font(.system(size: 14))
+                        .foregroundColor(.primary)
+                    Text(decisions.skillsLine.isEmpty ? "None selected" : decisions.skillsLine)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(3)
                 }
+                Spacer()
+                Image(systemName: "chevron.right").foregroundColor(.secondary).font(.caption)
             }
+            .contentShape(Rectangle())
+            .onTapGesture { showSkillsPicker = true }
         } header: {
             Text("Skills")
         }
@@ -137,24 +147,20 @@ struct CVEditorView: View {
     private var projectSection: some View {
         Section("Project") {
             ForEach(pools.projectOptions) { option in
-                Button {
-                    decisions.projectKey = option.key
-                } label: {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(option.title)
-                                .font(.system(size: 13))
-                                .foregroundColor(.primary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        Spacer()
-                        if decisions.projectKey == option.key {
-                            Image(systemName: "checkmark.circle.fill").foregroundColor(.indigo)
-                        } else {
-                            Image(systemName: "circle").foregroundColor(.secondary)
-                        }
+                HStack {
+                    Text(option.title)
+                        .font(.system(size: 13))
+                        .foregroundColor(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer()
+                    if decisions.projectKey == option.key {
+                        Image(systemName: "checkmark.circle.fill").foregroundColor(.indigo)
+                    } else {
+                        Image(systemName: "circle").foregroundColor(.secondary)
                     }
                 }
+                .contentShape(Rectangle())
+                .onTapGesture { decisions.projectKey = option.key }
             }
         }
     }
@@ -171,6 +177,13 @@ struct CVEditorView: View {
                     BulletRowView(entry: entry) {
                         swapTarget = SwapTarget(company: company, bulletIndex: idx)
                     }
+                }
+            }
+            .onMove { from, to in
+                switch company {
+                case .nHabit: decisions.nHabitBullets.move(fromOffsets: from, toOffset: to)
+                case .campConnection: decisions.campBullets.move(fromOffsets: from, toOffset: to)
+                case .projexino: decisions.projexinoBullets.move(fromOffsets: from, toOffset: to)
                 }
             }
         }
@@ -240,12 +253,10 @@ private struct BulletRowView: View {
                 .font(.system(size: 13))
                 .fixedSize(horizontal: false, vertical: true)
             if !entry.pinned {
-                Button(action: onSwap) {
-                    Label("Replace", systemImage: "arrow.left.arrow.right")
-                        .font(.caption.weight(.medium))
-                        .foregroundColor(.indigo)
-                }
-                .buttonStyle(.plain)
+                Label("Replace", systemImage: "arrow.left.arrow.right")
+                    .font(.caption.weight(.medium))
+                    .foregroundColor(.indigo)
+                    .onTapGesture { onSwap() }
             } else {
                 Label("Pinned", systemImage: "pin.fill")
                     .font(.caption)
@@ -270,34 +281,60 @@ struct SkillsPickerView: View {
     let title: String
     let subtitle: String
     let allSkills: [String]
-    @Binding var selected: Set<String>
-    var onDone: (Set<String>) -> Void
+    let initialSelected: [String]
+    var onDone: ([String]) -> Void
     @Environment(\.dismiss) private var dismiss
 
-    @State private var localSelected: Set<String> = []
+    @State private var localSelected: [String] = []
+
+    private var available: [String] {
+        allSkills.filter { !localSelected.contains($0) }
+    }
 
     var body: some View {
         NavigationStack {
-            List(allSkills, id: \.self) { skill in
-                Button {
-                    if localSelected.contains(skill) {
-                        localSelected.remove(skill)
-                    } else {
-                        localSelected.insert(skill)
+            List {
+                if !localSelected.isEmpty {
+                    Section {
+                        ForEach(localSelected, id: \.self) { skill in
+                            HStack(spacing: 10) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.indigo)
+                                Text(skill)
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.primary)
+                                Spacer()
+                                Image(systemName: "xmark.circle")
+                                    .foregroundColor(.secondary)
+                                    .font(.system(size: 14))
+                            }
+                            .contentShape(Rectangle())
+                            .onTapGesture { localSelected.removeAll { $0 == skill } }
+                        }
+                        .onMove { localSelected.move(fromOffsets: $0, toOffset: $1) }
+                    } header: {
+                        Text("Selected — tap to remove, drag to reorder")
                     }
-                } label: {
-                    HStack {
-                        Text(skill).font(.system(size: 14)).foregroundColor(.primary)
-                        Spacer()
-                        if localSelected.contains(skill) {
-                            Image(systemName: "checkmark.circle.fill").foregroundColor(.indigo)
-                        } else {
-                            Image(systemName: "circle").foregroundColor(.secondary)
+                }
+                Section("Available") {
+                    ForEach(available, id: \.self) { skill in
+                        HStack(spacing: 10) {
+                            Image(systemName: "plus.circle")
+                                .foregroundColor(.secondary)
+                            Text(skill)
+                                .font(.system(size: 14))
+                                .foregroundColor(.primary)
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            guard !localSelected.contains(skill) else { return }
+                            localSelected.append(skill)
                         }
                     }
                 }
             }
-            .listStyle(.plain)
+            .listStyle(.insetGrouped)
+            .environment(\.editMode, .constant(.active))
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -322,7 +359,7 @@ struct SkillsPickerView: View {
                     .background(.ultraThinMaterial)
             }
         }
-        .onAppear { localSelected = selected }
+        .onAppear { localSelected = initialSelected }
     }
 }
 

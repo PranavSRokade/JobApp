@@ -9,6 +9,7 @@ struct CVPreviewView: View {
     @State private var showShareOptions = false
     @State private var shareItems: [Any]? = nil
     @State private var showEditor = false
+    @State private var showJD = false
 
     var body: some View {
         NavigationStack {
@@ -21,12 +22,27 @@ struct CVPreviewView: View {
                         Button("Edit") { showEditor = true }
                     }
                     ToolbarItem(placement: .navigationBarTrailing) {
-                        Button {
-                            showShareOptions = true
-                        } label: {
-                            Image(systemName: "square.and.arrow.up")
+                        HStack(spacing: 16) {
+                            Button {
+                                showJD = true
+                            } label: {
+                                Label("JD", systemImage: "doc.text")
+                                    .labelStyle(.titleAndIcon)
+                                    .font(.system(size: 13, weight: .medium))
+                            }
+                            Button {
+                                showShareOptions = true
+                            } label: {
+                                Image(systemName: "square.and.arrow.up")
+                            }
                         }
                     }
+                }
+                .sheet(isPresented: $showJD) {
+                    JDQuickView(jd: jd)
+                        .presentationDetents([.medium, .large])
+                        .presentationDragIndicator(.visible)
+                        .presentationBackgroundInteraction(.enabled(upThrough: .medium))
                 }
                 .confirmationDialog("Share as", isPresented: $showShareOptions, titleVisibility: .visible) {
                     Button("Share PDF") {
@@ -64,6 +80,26 @@ struct CVPreviewView: View {
                         result.pdfData = newPDF
                     }
                 }
+        }
+    }
+}
+
+// MARK: - JD quick-view bottom sheet
+
+struct JDQuickView: View {
+    let jd: String
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                Text(jd)
+                    .font(.system(size: 14))
+                    .foregroundColor(.primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
+            }
+            .navigationTitle("Job Description")
+            .navigationBarTitleDisplayMode(.inline)
         }
     }
 }
