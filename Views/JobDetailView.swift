@@ -10,6 +10,9 @@ struct JobDetailView: View {
     @State private var cvResult: CVResult? = nil
     @State private var cvError: String? = nil
     @State private var showCVOptions = false
+    @State private var isGeneratingCoverLetter = false
+    @State private var coverLetterPdf: Data? = nil
+    @State private var coverLetterError: String? = nil
 
     private var isStarred: Bool { starredStore.isStarred(job.jobId) }
 
@@ -79,48 +82,64 @@ struct JobDetailView: View {
                     }
                 }
 
-                // Generate CV (Pranav only, requires a JD)
-                if profile == "spencer", let jd = job.jd {
-                    Button {
-                        if CVCacheStore.load(for: job.jobId) != nil {
-                            showCVOptions = true
-                        } else {
-                            generateCV(jd: jd)
-                        }
-                    } label: {
-                        Group {
-                            if isGeneratingCV {
-                                HStack(spacing: 8) {
-                                    ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                    Text("Generating CV…")
-                                }
+                // Generate CV + Cover Letter — both require a JD
+                if let jd = job.jd {
+                    let hasCachedCV = CVCacheStore.load(for: job.jobId) != nil
+                    HStack(spacing: 10) {
+                        Button {
+                            if hasCachedCV {
+                                showCVOptions = true
                             } else {
-                                Label("Generate CV", systemImage: "doc.text.fill")
+                                generateCV(jd: jd)
                             }
+                        } label: {
+                            Group {
+                                if isGeneratingCV {
+                                    HStack(spacing: 6) {
+                                        ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                        Text("Generating…").lineLimit(1)
+                                    }
+                                } else {
+                                    Label("Generate CV", systemImage: "doc.text.fill").lineLimit(1)
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.green)
+                            .foregroundColor(.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.green)
-                        .foregroundColor(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                    }
-                    .disabled(isGeneratingCV)
-                    .confirmationDialog("A CV was already generated for this job.", isPresented: $showCVOptions, titleVisibility: .visible) {
-                        Button("Use Saved CV") {
-                            cvResult = CVCacheStore.load(for: job.jobId)
+                        .disabled(isGeneratingCV)
+                        .confirmationDialog("A CV was already generated for this job.", isPresented: $showCVOptions, titleVisibility: .visible) {
+                            Button("Use Saved CV") { cvResult = CVCacheStore.load(for: job.jobId) }
+                            Button("Generate New CV") { generateCV(jd: jd) }
+                            Button("Cancel", role: .cancel) {}
                         }
-                        Button("Generate New CV") {
-                            generateCV(jd: jd)
+
+                        Button {
+                            generateCoverLetter(jd: jd, latex: CVCacheStore.load(for: job.jobId)?.latex)
+                        } label: {
+                            Group {
+                                if isGeneratingCoverLetter {
+                                    ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                } else {
+                                    Label("Cover Letter", systemImage: "envelope.fill").lineLimit(1)
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.indigo)
+                            .foregroundColor(.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
-                        Button("Cancel", role: .cancel) {}
+                        .disabled(isGeneratingCoverLetter)
                     }
 
                     if let err = cvError {
-                        Text(err)
-                            .font(.caption)
-                            .foregroundColor(.red)
-                            .multilineTextAlignment(.center)
+                        Text(err).font(.caption).foregroundColor(.red).multilineTextAlignment(.center)
+                    }
+                    if let err = coverLetterError {
+                        Text(err).font(.caption).foregroundColor(.red).multilineTextAlignment(.center)
                     }
                 }
 
@@ -148,7 +167,15 @@ struct JobDetailView: View {
             set: { if !$0 { cvResult = nil } }
         )) {
             if let result = cvResult {
-                CVPreviewView(jd: job.jd ?? "", jobId: job.jobId, result: result)
+                CVPreviewView(jd: job.jd ?? "", jobId: job.jobId, profile: profile, result: result)
+            }
+        }
+        .sheet(isPresented: Binding(
+            get: { coverLetterPdf != nil },
+            set: { if !$0 { coverLetterPdf = nil } }
+        )) {
+            if let pdf = coverLetterPdf {
+                CoverLetterPreviewView(pdfData: pdf, jobTitle: job.title)
             }
         }
     }
@@ -158,13 +185,27 @@ struct JobDetailView: View {
         cvError = nil
         Task {
             do {
-                let result = try await CVService.generateCV(jd: jd)
+                let result = try await CVService.generateCV(jd: jd, profile: profile)
                 CVCacheStore.save(result, for: job.jobId)
                 cvResult = result
             } catch {
                 cvError = error.localizedDescription
             }
             isGeneratingCV = false
+        }
+    }
+
+    private func generateCoverLetter(jd: String, latex: String?) {
+        isGeneratingCoverLetter = true
+        coverLetterError = nil
+        Task {
+            do {
+                let pdf = try await CVService.generateCoverLetter(jd: jd, latex: latex, profile: profile)
+                coverLetterPdf = pdf
+            } catch {
+                coverLetterError = error.localizedDescription
+            }
+            isGeneratingCoverLetter = false
         }
     }
 }

@@ -26,11 +26,17 @@ private struct CVRebuildResponse: Decodable {
     let pdf: String
 }
 
+private struct CoverLetterResponse: Decodable {
+    let pdf: String
+    let text: String
+}
+
 struct CVService {
     private static let baseURL = "https://job-worker.pranavrokade.workers.dev"
 
-    static func generateCV(jd: String) async throws -> CVResult {
-        let data = try await post(path: "/api/cv", body: ["jd": jd])
+    static func generateCV(jd: String, profile: String = "spencer") async throws -> CVResult {
+        struct Body: Encodable { let jd: String; let profile: String }
+        let data = try await post(path: "/api/cv", body: Body(jd: jd, profile: profile))
         guard
             let decoded = try? JSONDecoder().decode(CVGenerateResponse.self, from: data),
             let pdfData = Data(base64Encoded: decoded.pdf)
@@ -38,14 +44,24 @@ struct CVService {
         return CVResult(latex: decoded.latex, pdfData: pdfData, decisions: decoded.decisions, pools: decoded.pools)
     }
 
-    static func rebuild(decisions: CVDecisions, jd: String) async throws -> (latex: String, pdfData: Data) {
-        struct Body: Encodable { let decisions: CVDecisions; let jd: String }
-        let data = try await post(path: "/api/cv-rebuild", body: Body(decisions: decisions, jd: jd))
+    static func rebuild(decisions: CVDecisions, jd: String, profile: String = "spencer") async throws -> (latex: String, pdfData: Data) {
+        struct Body: Encodable { let decisions: CVDecisions; let jd: String; let profile: String }
+        let data = try await post(path: "/api/cv-rebuild", body: Body(decisions: decisions, jd: jd, profile: profile))
         guard
             let decoded = try? JSONDecoder().decode(CVRebuildResponse.self, from: data),
             let pdfData = Data(base64Encoded: decoded.pdf)
         else { throw CVServiceError.decodingError }
         return (decoded.latex, pdfData)
+    }
+
+    static func generateCoverLetter(jd: String, latex: String?, profile: String = "spencer") async throws -> Data {
+        struct Body: Encodable { let jd: String; let latex: String?; let profile: String }
+        let data = try await post(path: "/api/cover-letter", body: Body(jd: jd, latex: latex, profile: profile))
+        guard
+            let decoded = try? JSONDecoder().decode(CoverLetterResponse.self, from: data),
+            let pdfData = Data(base64Encoded: decoded.pdf)
+        else { throw CVServiceError.decodingError }
+        return pdfData
     }
 
     private static func post<B: Encodable>(path: String, body: B) async throws -> Data {

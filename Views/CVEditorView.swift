@@ -5,7 +5,8 @@ struct CVEditorView: View {
     let pools: CVBulletPools
     let jd: String
     let jobId: Int
-    var onRebuild: (String, Data) -> Void
+    let profile: String
+    var onRebuild: (String, Data, CVDecisions) -> Void
 
     @State private var isRebuilding = false
     @State private var rebuildError: String?
@@ -13,7 +14,10 @@ struct CVEditorView: View {
     @State private var showSkillsPicker = false
     @State private var showSummarySkillsPicker = false
     @State private var showJD = false
+    @State private var livePools: CVBulletPools? = nil
     @Environment(\.dismiss) private var dismiss
+
+    private var activePools: CVBulletPools { livePools ?? pools }
 
     var body: some View {
         NavigationStack {
@@ -21,9 +25,7 @@ struct CVEditorView: View {
                 summarySection
                 skillsSection
                 projectSection
-                companySection(.nHabit)
-                companySection(.campConnection)
-                companySection(.projexino)
+                ForEach(CVCompany.cases(for: profile), id: \.self) { companySection($0) }
             }
             .listStyle(.insetGrouped)
             .environment(\.editMode, .constant(.active))
@@ -50,14 +52,15 @@ struct CVEditorView: View {
                     .presentationBackgroundInteraction(.enabled(upThrough: .medium))
             }
             .safeAreaInset(edge: .bottom) { rebuildBar }
+            .task { await refreshPools() }
             .sheet(item: $swapTarget) { target in
-                BulletPickerView(target: target, decisions: $decisions, pools: pools)
+                BulletPickerView(target: target, decisions: $decisions, pools: activePools)
             }
             .sheet(isPresented: $showSkillsPicker) {
                 SkillsPickerView(
                     title: "Skills Line",
                     subtitle: "These appear in the Skills section of your CV",
-                    allSkills: pools.skillsArray,
+                    allSkills: activePools.skillsArray,
                     initialSelected: decisions.skillsLine
                         .split(separator: ",")
                         .map { $0.trimmingCharacters(in: .whitespaces) }
@@ -71,7 +74,7 @@ struct CVEditorView: View {
                 SkillsPickerView(
                     title: "Summary Skills",
                     subtitle: "Skills highlighted in your professional summary",
-                    allSkills: pools.skillsArray,
+                    allSkills: activePools.skillsArray,
                     initialSelected: decisions.skills,
                     onDone: { ordered in
                         decisions.skills = ordered
@@ -146,7 +149,7 @@ struct CVEditorView: View {
 
     private var projectSection: some View {
         Section("Project") {
-            ForEach(pools.projectOptions) { option in
+            ForEach(activePools.projectOptions) { option in
                 HStack {
                     Text(option.title)
                         .font(.system(size: 13))
@@ -170,8 +173,8 @@ struct CVEditorView: View {
     @ViewBuilder
     private func companySection(_ company: CVCompany) -> some View {
         let selected = company.selectedIndices(in: decisions)
-        let pool = pools.pool(for: company)
-        Section(company.displayName) {
+        let pool = activePools.pool(for: company)
+        Section(company.displayName(for: profile)) {
             ForEach(Array(selected.enumerated()), id: \.element) { _, idx in
                 if let entry = pool.first(where: { $0.index == idx }) {
                     BulletRowView(entry: entry) {
@@ -184,6 +187,7 @@ struct CVEditorView: View {
                 case .nHabit: decisions.nHabitBullets.move(fromOffsets: from, toOffset: to)
                 case .campConnection: decisions.campBullets.move(fromOffsets: from, toOffset: to)
                 case .projexino: decisions.projexinoBullets.move(fromOffsets: from, toOffset: to)
+                case .samyak: decisions.samyakBullets.move(fromOffsets: from, toOffset: to)
                 }
             }
         }
@@ -223,16 +227,35 @@ struct CVEditorView: View {
         .background(.ultraThinMaterial)
     }
 
+    // MARK: - Refresh pools from server
+
+    private func refreshPools() async {
+        guard let freshProfile = try? await CVProfileService.fetchProfile(for: profile) else { return }
+        func convert(_ bullets: [CVProfileBullet]) -> [CVBulletEntry] {
+            bullets.enumerated().map { i, b in
+                CVBulletEntry(index: i + 1, displayText: b.displayText, pinned: b.pinned, skills: b.skills)
+            }
+        }
+        livePools = CVBulletPools(
+            nHabit: convert(freshProfile.bullets.nHabit),
+            campConnection: convert(freshProfile.bullets.campConnection),
+            projexino: convert(freshProfile.bullets.projexino),
+            samyak: convert(freshProfile.bullets.samyak),
+            skillsArray: freshProfile.skills,
+            projectOptions: pools.projectOptions
+        )
+    }
+
     // MARK: - Rebuild action
 
     private func rebuild() async {
         isRebuilding = true
         rebuildError = nil
         do {
-            let (latex, pdfData) = try await CVService.rebuild(decisions: decisions, jd: jd)
+            let (latex, pdfData) = try await CVService.rebuild(decisions: decisions, jd: jd, profile: profile)
             let updated = CVResult(latex: latex, pdfData: pdfData, decisions: decisions, pools: pools)
             CVCacheStore.save(updated, for: jobId)
-            onRebuild(latex, pdfData)
+            onRebuild(latex, pdfData, decisions)
             dismiss()
         } catch {
             rebuildError = error.localizedDescription
@@ -433,6 +456,8 @@ struct BulletPickerView: View {
             decisions.campBullets = decisions.campBullets.map { $0 == target.bulletIndex ? newIndex : $0 }
         case .projexino:
             decisions.projexinoBullets = decisions.projexinoBullets.map { $0 == target.bulletIndex ? newIndex : $0 }
+        case .samyak:
+            decisions.samyakBullets = decisions.samyakBullets.map { $0 == target.bulletIndex ? newIndex : $0 }
         }
     }
 }

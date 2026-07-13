@@ -11,28 +11,35 @@ final class JobsViewModel: ObservableObject {
     @Published var selectedSheet: String? = nil {
         didSet { Task { await load() } }
     }
-    @Published var selectedProfile: String = "spencer" {
+    @Published var selectedProfile: String = "gf" {
         didSet {
             selectedSheet = nil
             starredStore = StarredJobsStore(profile: selectedProfile)
+            filtersStore = JobFiltersStore(profile: selectedProfile)
             Task { await load() }
         }
     }
     @Published var starredStore: StarredJobsStore = StarredJobsStore(profile: "spencer")
+    @Published var filtersStore: JobFiltersStore = JobFiltersStore(profile: "spencer") {
+        didSet { subscribeToFilters() }
+    }
+    private var filtersCancellable: AnyCancellable?
     @Published var showStarredOnly = false
     @Published var searchText = ""
 
     var filteredJobs: [Job] {
-        let base = searchText.isEmpty ? jobs : jobs.filter {
+        var base = filtersStore.apply(to: jobs)
+        if !searchText.isEmpty {
             let q = searchText.lowercased()
-            return $0.title.lowercased().contains(q) ||
-                   $0.company.lowercased().contains(q) ||
-                   $0.location.lowercased().contains(q)
+            base = base.filter {
+                $0.title.lowercased().contains(q) ||
+                $0.company.lowercased().contains(q) ||
+                $0.location.lowercased().contains(q)
+            }
         }
         if showStarredOnly {
             return base.filter { starredStore.isStarred($0.jobId) }
         }
-        // Starred float to top, rest sorted by rank
         let starred = base.filter { starredStore.isStarred($0.jobId) }
         let rest = base.filter { !starredStore.isStarred($0.jobId) }
         return starred + rest
@@ -64,6 +71,16 @@ final class JobsViewModel: ObservableObject {
         let removedIds = previousJobIds.subtracting(remainingJobIds)
         if !removedIds.isEmpty {
             starredStore.clearStars(forJobIds: Array(removedIds))
+        }
+    }
+
+    init() {
+        subscribeToFilters()
+    }
+
+    private func subscribeToFilters() {
+        filtersCancellable = filtersStore.objectWillChange.sink { [weak self] in
+            self?.objectWillChange.send()
         }
     }
 

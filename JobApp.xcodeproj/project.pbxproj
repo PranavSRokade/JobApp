@@ -14,6 +14,12 @@
 		0950204B2FE53F3F00920FFC /* CVEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0950204A2FE53F3F00920FFC /* CVEditorView.swift */; };
 		0950204D2FE53F4900920FFC /* CVModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0950204C2FE53F4900920FFC /* CVModels.swift */; };
 		0950204F2FE5484500920FFC /* CVCacheStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0950204E2FE5484500920FFC /* CVCacheStore.swift */; };
+		095020512FE6E5DF00920FFC /* CVProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 095020502FE6E5DF00920FFC /* CVProfile.swift */; };
+		095020532FE6E5E900920FFC /* CVProfileEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 095020522FE6E5E900920FFC /* CVProfileEditorView.swift */; };
+		095020552FE6E60100920FFC /* CVProfileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 095020542FE6E60100920FFC /* CVProfileService.swift */; };
+		095020572FEBE4ED00920FFC /* CoverLetterPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 095020562FEBE4ED00920FFC /* CoverLetterPreviewView.swift */; };
+		095020582FEBE5A000920FFC /* JobFilters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 095020592FEBE5A000920FFC /* JobFilters.swift */; };
+		0950205A2FEBE5A000920FFC /* JobFiltersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0950205B2FEBE5A000920FFC /* JobFiltersView.swift */; };
 		09DC9A3E2FE40F7C00ECDB7A /* JobsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09DC9A352FE40F7C00ECDB7A /* JobsService.swift */; };
 		09DC9A3F2FE40F7C00ECDB7A /* ScoreBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09DC9A3C2FE40F7C00ECDB7A /* ScoreBadgeView.swift */; };
 		09DC9A402FE40F7C00ECDB7A /* Job.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09DC9A332FE40F7C00ECDB7A /* Job.swift */; };
@@ -33,6 +39,12 @@
 		0950204A2FE53F3F00920FFC /* CVEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CVEditorView.swift; sourceTree = "<group>"; };
 		0950204C2FE53F4900920FFC /* CVModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CVModels.swift; sourceTree = "<group>"; };
 		0950204E2FE5484500920FFC /* CVCacheStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CVCacheStore.swift; sourceTree = "<group>"; };
+		095020502FE6E5DF00920FFC /* CVProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CVProfile.swift; sourceTree = "<group>"; };
+		095020522FE6E5E900920FFC /* CVProfileEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CVProfileEditorView.swift; sourceTree = "<group>"; };
+		095020542FE6E60100920FFC /* CVProfileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CVProfileService.swift; sourceTree = "<group>"; };
+		095020562FEBE4ED00920FFC /* CoverLetterPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoverLetterPreviewView.swift; sourceTree = "<group>"; };
+		095020592FEBE5A000920FFC /* JobFilters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JobFilters.swift; sourceTree = "<group>"; };
+		0950205B2FEBE5A000920FFC /* JobFiltersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JobFiltersView.swift; sourceTree = "<group>"; };
 		09DC9A232FE40F5A00ECDB7A /* JobApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JobApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		09DC9A312FE40F7C00ECDB7A /* JobTrackerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JobTrackerApp.swift; sourceTree = "<group>"; };
 		09DC9A332FE40F7C00ECDB7A /* Job.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Job.swift; sourceTree = "<group>"; };
@@ -96,8 +108,10 @@
 		09DC9A342FE40F7C00ECDB7A /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				095020502FE6E5DF00920FFC /* CVProfile.swift */,
 				0950204C2FE53F4900920FFC /* CVModels.swift */,
 				09DC9A332FE40F7C00ECDB7A /* Job.swift */,
+				095020592FEBE5A000920FFC /* JobFilters.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -105,6 +119,7 @@
 		09DC9A362FE40F7C00ECDB7A /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				095020542FE6E60100920FFC /* CVProfileService.swift */,
 				0950204E2FE5484500920FFC /* CVCacheStore.swift */,
 				095020462FE5314900920FFC /* CVService.swift */,
 				095020442FE527A000920FFC /* StarredJobsStore.swift */,
@@ -124,6 +139,9 @@
 		09DC9A3D2FE40F7C00ECDB7A /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				095020562FEBE4ED00920FFC /* CoverLetterPreviewView.swift */,
+				0950205B2FEBE5A000920FFC /* JobFiltersView.swift */,
+				095020522FE6E5E900920FFC /* CVProfileEditorView.swift */,
 				0950204A2FE53F3F00920FFC /* CVEditorView.swift */,
 				095020482FE5315400920FFC /* CVPreviewView.swift */,
 				09DC9A482FE4181F00ECDB7A /* ManageSheetsView.swift */,
@@ -213,14 +231,20 @@
 				09DC9A412FE40F7C00ECDB7A /* JobTrackerApp.swift in Sources */,
 				095020472FE5314900920FFC /* CVService.swift in Sources */,
 				095020452FE527AF00920FFC /* StarredJobsStore.swift in Sources */,
+				095020572FEBE4ED00920FFC /* CoverLetterPreviewView.swift in Sources */,
+				095020582FEBE5A000920FFC /* JobFilters.swift in Sources */,
+				0950205A2FEBE5A000920FFC /* JobFiltersView.swift in Sources */,
 				0950204F2FE5484500920FFC /* CVCacheStore.swift in Sources */,
 				09DC9A422FE40F7C00ECDB7A /* JobsViewModel.swift in Sources */,
 				095020402FE41CF500920FFC /* AgeUtils.swift in Sources */,
 				09DC9A492FE4181F00ECDB7A /* ManageSheetsView.swift in Sources */,
 				09DC9A432FE40F7C00ECDB7A /* JobRowView.swift in Sources */,
 				09DC9A442FE40F7C00ECDB7A /* JobsListView.swift in Sources */,
+				095020512FE6E5DF00920FFC /* CVProfile.swift in Sources */,
+				095020552FE6E60100920FFC /* CVProfileService.swift in Sources */,
 				0950204B2FE53F3F00920FFC /* CVEditorView.swift in Sources */,
 				0950204D2FE53F4900920FFC /* CVModels.swift in Sources */,
+				095020532FE6E5E900920FFC /* CVProfileEditorView.swift in Sources */,
 				09DC9A452FE40F7C00ECDB7A /* JobDetailView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

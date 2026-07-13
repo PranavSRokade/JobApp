@@ -4,6 +4,8 @@ struct JobsListView: View {
     @StateObject private var vm = JobsViewModel()
     @State private var sheetToDelete: String? = nil
     @State private var showManageSheets = false
+    @State private var showProfileEditor = false
+    @State private var showFilters = false
 
     var body: some View {
         NavigationStack {
@@ -34,10 +36,21 @@ struct JobsListView: View {
                     .searchable(text: $vm.searchText, prompt: "Search jobs…")
                 }
             }
-            .navigationTitle(vm.showStarredOnly ? "Starred" : "Jobs")
+            .navigationTitle(vm.showStarredOnly ? "\(vm.filteredJobs.count) Starred" : "\(vm.filteredJobs.count) Jobs")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     HStack(spacing: 12) {
+                        Button {
+                            showProfileEditor = true
+                        } label: {
+                            Image(systemName: "slider.horizontal.3")
+                        }
+                        Button {
+                            showFilters = true
+                        } label: {
+                            Image(systemName: vm.filtersStore.filters.isDefault ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+                                .foregroundColor(vm.filtersStore.filters.isDefault ? .primary : .indigo)
+                        }
                         Button {
                             vm.showStarredOnly.toggle()
                         } label: {
@@ -57,6 +70,14 @@ struct JobsListView: View {
         .task { await vm.load() }
         .sheet(isPresented: $showManageSheets) {
             ManageSheetsView(vm: vm)
+        }
+        .sheet(isPresented: $showProfileEditor) {
+            CVProfileEditorView(profileKey: vm.selectedProfile)
+        }
+        .sheet(isPresented: $showFilters) {
+            JobFiltersView(store: vm.filtersStore)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
         .confirmationDialog(
             "Delete \(sheetToDelete.map { formatSheetName($0) } ?? "")?",
