@@ -28,5 +28,6 @@ struct JobsResponse: Codable {
     let sheet: String?
     let sheets: [String]
     let profile: String
+    let region: String?
     let jobs: [Job]
 }

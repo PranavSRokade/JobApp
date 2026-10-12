@@ -33,6 +33,46 @@ struct CVProfileService {
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw CVServiceError.decodingError }
     }
 
+    struct SuggestedBullet: Decodable, Identifiable {
+        var id = UUID()
+        let latex: String
+        let skills: [String]
+        private enum CodingKeys: String, CodingKey { case latex, skills }
+    }
+
+    static func chatBullets(
+        messages: [(role: String, content: String)],
+        company: String,
+        profile: String
+    ) async throws -> (text: String, bullets: [SuggestedBullet]) {
+        struct Msg: Encodable { let role: String; let content: String }
+        struct Body: Encodable { let messages: [Msg]; let company: String; let profile: String }
+        struct Resp: Decodable { let text: String; let bullets: [SuggestedBullet] }
+        let body = Body(messages: messages.map { Msg(role: $0.role, content: $0.content) }, company: company, profile: profile)
+        guard let url = URL(string: "\(base)/api/cv/chat-bullets") else { throw CVServiceError.decodingError }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONEncoder().encode(body)
+        req.timeoutInterval = 30
+        let (data, _) = try await URLSession.shared.data(for: req)
+        let resp = try JSONDecoder().decode(Resp.self, from: data)
+        return (resp.text, resp.bullets)
+    }
+
+    static func suggestBullets(description: String, company: String, profile: String) async throws -> [SuggestedBullet] {
+        struct Body: Encodable { let description: String; let company: String; let profile: String }
+        struct Resp: Decodable { let bullets: [SuggestedBullet] }
+        guard let url = URL(string: "\(base)/api/cv/suggest-bullets") else { throw CVServiceError.decodingError }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONEncoder().encode(Body(description: description, company: company, profile: profile))
+        req.timeoutInterval = 30
+        let (data, _) = try await URLSession.shared.data(for: req)
+        return (try JSONDecoder().decode(Resp.self, from: data)).bullets
+    }
+
     struct TitleFilters: Codable {
         var allowed: [String]
         var blocked: [String]

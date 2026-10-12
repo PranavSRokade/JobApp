@@ -17,11 +17,14 @@ enum JobsServiceError: LocalizedError {
 struct JobsService {
     private static let baseURL = "https://job-worker.pranavrokade.workers.dev/api/jobs"
 
-    static func fetchJobs(profile: String, sheet: String? = nil) async throws -> JobsResponse {
+    static func fetchJobs(profile: String, sheet: String? = nil, region: String = "uk") async throws -> JobsResponse {
         guard var components = URLComponents(string: baseURL) else {
             throw JobsServiceError.invalidURL
         }
-        var queryItems = [URLQueryItem(name: "profile", value: profile)]
+        var queryItems = [
+            URLQueryItem(name: "profile", value: profile),
+            URLQueryItem(name: "region", value: region),
+        ]
         if let sheet { queryItems.append(URLQueryItem(name: "sheet", value: sheet)) }
         components.queryItems = queryItems
         guard let url = components.url else { throw JobsServiceError.invalidURL }

@@ -74,7 +74,7 @@ struct CVBulletPools: Codable {
     }
 }
 
-enum CVCompany: String, CaseIterable {
+enum CVCompany: String, CaseIterable, Codable {
     case nHabit, campConnection, projexino, samyak
 
     static func cases(for profile: String) -> [CVCompany] {
@@ -100,6 +100,15 @@ enum CVCompany: String, CaseIterable {
         }
     }
 
+    var apiKey: String {
+        switch self {
+        case .nHabit: return "nHabit"
+        case .campConnection: return "campConnection"
+        case .projexino: return "projexino"
+        case .samyak: return "samyak"
+        }
+    }
+
     func selectedIndices(in decisions: CVDecisions) -> [Int] {
         switch self {
         case .nHabit: return decisions.nHabitBullets
@@ -110,9 +119,14 @@ enum CVCompany: String, CaseIterable {
     }
 }
 
-struct CVResult: Codable {
+struct CVResult: Codable, Identifiable {
+    var id = UUID()
     var latex: String
     var pdfData: Data
     var decisions: CVDecisions
     var pools: CVBulletPools
+
+    enum CodingKeys: String, CodingKey {
+        case latex, pdfData, decisions, pools
+    }
 }

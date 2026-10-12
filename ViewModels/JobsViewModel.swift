@@ -1,6 +1,9 @@
 import Foundation
 import Combine
 
+// Change this one string to switch profiles across the whole app
+private let activeProfile = "spencer"
+
 @MainActor
 final class JobsViewModel: ObservableObject {
     @Published var jobs: [Job] = []
@@ -11,19 +14,25 @@ final class JobsViewModel: ObservableObject {
     @Published var selectedSheet: String? = nil {
         didSet { Task { await load() } }
     }
-    @Published var selectedProfile: String = "gf" {
+    let selectedProfile = activeProfile
+    // "uk" or "us" — which market's sheet tabs to show. Remembered per profile.
+    @Published var region: String = UserDefaults.standard.string(forKey: "region_\(activeProfile)") ?? "uk" {
         didSet {
-            selectedSheet = nil
-            starredStore = StarredJobsStore(profile: selectedProfile)
-            filtersStore = JobFiltersStore(profile: selectedProfile)
-            Task { await load() }
+            guard oldValue != region else { return }
+            UserDefaults.standard.set(region, forKey: "region_\(activeProfile)")
+            // Sheet names differ per region, so drop the selection and fetch that region's latest
+            if selectedSheet != nil { selectedSheet = nil } else { Task { await load() } }
         }
     }
-    @Published var starredStore: StarredJobsStore = StarredJobsStore(profile: "spencer")
-    @Published var filtersStore: JobFiltersStore = JobFiltersStore(profile: "spencer") {
+    @Published var starredStore: StarredJobsStore = StarredJobsStore(profile: activeProfile)
+    @Published var filtersStore: JobFiltersStore = JobFiltersStore(profile: activeProfile) {
         didSet { subscribeToFilters() }
     }
+    let chatStore: FeatureChatStore = FeatureChatStore(profile: activeProfile)
     private var filtersCancellable: AnyCancellable?
+    private var starsCancellable: AnyCancellable?
+    @Published var sheetsWithStars: Set<String> = []
+    private var jobSheetMap: [Int: String] = [:]
     @Published var showStarredOnly = false
     @Published var searchText = ""
 
@@ -75,7 +84,9 @@ final class JobsViewModel: ObservableObject {
     }
 
     init() {
+        loadJobSheetMap()
         subscribeToFilters()
+        subscribeToStars()
     }
 
     private func subscribeToFilters() {
@@ -84,14 +95,37 @@ final class JobsViewModel: ObservableObject {
         }
     }
 
+    private func subscribeToStars() {
+        starsCancellable = starredStore.$starredIds.sink { [weak self] ids in
+            guard let self else { return }
+            self.sheetsWithStars = Set(ids.compactMap { self.jobSheetMap[$0] })
+        }
+    }
+
+    private func loadJobSheetMap() {
+        let raw = UserDefaults.standard.dictionary(forKey: "jobSheetMap_\(selectedProfile)") as? [String: String] ?? [:]
+        jobSheetMap = Dictionary(uniqueKeysWithValues: raw.compactMap { k, v in Int(k).map { ($0, v) } })
+        sheetsWithStars = Set(starredStore.starredIds.compactMap { jobSheetMap[$0] })
+    }
+
+    private func saveJobSheetMap() {
+        let raw = Dictionary(uniqueKeysWithValues: jobSheetMap.map { (String($0.key), $0.value) })
+        UserDefaults.standard.set(raw, forKey: "jobSheetMap_\(selectedProfile)")
+    }
+
     func load(silent: Bool = false) async {
         if !silent { isLoading = true }
         errorMessage = nil
         do {
-            let response = try await JobsService.fetchJobs(profile: selectedProfile, sheet: selectedSheet)
+            let response = try await JobsService.fetchJobs(profile: selectedProfile, sheet: selectedSheet, region: region)
             jobs = response.jobs.sorted { $0.rank > $1.rank }
             sheetName = response.sheet
             availableSheets = response.sheets
+            if let name = response.sheet {
+                for job in jobs { jobSheetMap[job.jobId] = name }
+                saveJobSheetMap()
+                sheetsWithStars = Set(starredStore.starredIds.compactMap { jobSheetMap[$0] })
+            }
         } catch {
             errorMessage = error.localizedDescription
         }

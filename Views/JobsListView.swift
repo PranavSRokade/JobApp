@@ -6,6 +6,9 @@ struct JobsListView: View {
     @State private var showManageSheets = false
     @State private var showProfileEditor = false
     @State private var showFilters = false
+    @State private var showQuickCV = false
+    @State private var showBulletSuggester = false
+    @State private var showFeatureChats = false
 
     var body: some View {
         NavigationStack {
@@ -36,28 +39,37 @@ struct JobsListView: View {
                     .searchable(text: $vm.searchText, prompt: "Search jobs…")
                 }
             }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                regionPicker
+            }
             .navigationTitle(vm.showStarredOnly ? "\(vm.filteredJobs.count) Starred" : "\(vm.filteredJobs.count) Jobs")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    HStack(spacing: 12) {
-                        Button {
-                            showProfileEditor = true
-                        } label: {
-                            Image(systemName: "slider.horizontal.3")
+                    Menu {
+                        Button { vm.showStarredOnly.toggle() } label: {
+                            Label(vm.showStarredOnly ? "Show All" : "Show Starred",
+                                  systemImage: vm.showStarredOnly ? "star.slash" : "star")
                         }
-                        Button {
-                            showFilters = true
-                        } label: {
-                            Image(systemName: vm.filtersStore.filters.isDefault ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
-                                .foregroundColor(vm.filtersStore.filters.isDefault ? .primary : .indigo)
+                        Button { showFilters = true } label: {
+                            Label(vm.filtersStore.filters.isDefault ? "Filters" : "Filters (active)",
+                                  systemImage: vm.filtersStore.filters.isDefault ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
                         }
-                        Button {
-                            vm.showStarredOnly.toggle()
-                        } label: {
-                            Image(systemName: vm.showStarredOnly ? "star.fill" : "star")
-                                .foregroundColor(vm.showStarredOnly ? .yellow : .secondary)
+                        Divider()
+                        Button { showFeatureChats = true } label: {
+                            Label("Feature Chats", systemImage: "text.bubble")
                         }
-                        profilePicker
+                        Button { showBulletSuggester = true } label: {
+                            Label("Suggest Bullets", systemImage: "wand.and.sparkles")
+                        }
+                        Button { showQuickCV = true } label: {
+                            Label("Quick CV", systemImage: "doc.text.below.ecg")
+                        }
+                        Divider()
+                        Button { showProfileEditor = true } label: {
+                            Label("Edit Profile", systemImage: "person.crop.circle")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
                     }
                 }
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -73,6 +85,15 @@ struct JobsListView: View {
         }
         .sheet(isPresented: $showProfileEditor) {
             CVProfileEditorView(profileKey: vm.selectedProfile)
+        }
+        .sheet(isPresented: $showBulletSuggester) {
+            BulletSuggesterView(profile: vm.selectedProfile)
+        }
+        .sheet(isPresented: $showQuickCV) {
+            QuickCVView(profile: vm.selectedProfile)
+        }
+        .sheet(isPresented: $showFeatureChats) {
+            FeatureChatsListView(store: vm.chatStore, profile: vm.selectedProfile)
         }
         .sheet(isPresented: $showFilters) {
             JobFiltersView(store: vm.filtersStore)
@@ -94,10 +115,21 @@ struct JobsListView: View {
         }
     }
 
+    private var regionPicker: some View {
+        Picker("Region", selection: $vm.region) {
+            Text("🇬🇧 UK").tag("uk")
+            Text("🇺🇸 USA").tag("us")
+        }
+        .pickerStyle(.segmented)
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(.bar)
+    }
+
     private var sheetPicker: some View {
         Menu {
             ForEach(vm.availableSheets, id: \.self) { sheet in
-                Menu(formatSheetName(sheet)) {
+                Menu(formatSheetName(sheet) + (vm.sheetsWithStars.contains(sheet) ? " ★" : "")) {
                     Button {
                         vm.selectedSheet = sheet
                     } label: {
@@ -127,28 +159,14 @@ struct JobsListView: View {
         }
     }
 
-    private var profilePicker: some View {
-        Menu {
-            Button {
-                vm.selectedProfile = "spencer"
-            } label: {
-                Label("Pranav", systemImage: vm.selectedProfile == "spencer" ? "checkmark" : "person")
-            }
-            Button {
-                vm.selectedProfile = "gf"
-            } label: {
-                Label("Anushka", systemImage: vm.selectedProfile == "gf" ? "checkmark" : "person")
-            }
-        } label: {
-            Label(vm.selectedProfile == "spencer" ? "Pranav" : "Anushka", systemImage: "person.circle")
-        }
-    }
+
 }
 
-// "03-42AM_18-Jun-26" → "18 Jun · 3:42 AM"
+// "03-42AM_18-Jun-26" or "US_03-42AM_18-Jun-26" → "18 Jun · 3:42 AM"
 private func formatSheetName(_ raw: String) -> String {
+    let name = raw.replacingOccurrences(of: #"^[A-Z]{2}_"#, with: "", options: .regularExpression)
     let pattern = /^(\d{2})-(\d{2})(AM|PM)_(\d{2})-([A-Za-z]{3})-(\d{2})$/
-    guard let match = try? pattern.wholeMatch(in: raw) else { return raw }
+    guard let match = try? pattern.wholeMatch(in: name) else { return raw }
     let (_, hh, mm, ampm, dd, month, _) = match.output
     let hour = Int(hh) ?? 0
     return "\(Int(dd) ?? 0) \(month) · \(hour):\(mm) \(ampm)"

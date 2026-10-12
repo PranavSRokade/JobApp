@@ -12,8 +12,15 @@ struct ManageSheetsView: View {
             List(vm.availableSheets, id: \.self, selection: $selected) { sheet in
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(formatSheetName(sheet))
-                            .font(.body)
+                        HStack(spacing: 5) {
+                            Text(formatSheetName(sheet))
+                                .font(.body)
+                            if vm.sheetsWithStars.contains(sheet) {
+                                Text("★")
+                                    .font(.caption)
+                                    .foregroundColor(.yellow)
+                            }
+                        }
                         Text(sheet)
                             .font(.caption2)
                             .foregroundColor(.secondary)
@@ -118,8 +125,10 @@ struct ManageSheetsView: View {
 }
 
 private func formatSheetName(_ raw: String) -> String {
+    // Tabs may carry a region prefix, e.g. "US_03-42PM_12-Oct-26"
+    let name = raw.replacingOccurrences(of: #"^[A-Z]{2}_"#, with: "", options: .regularExpression)
     let pattern = /^(\d{2})-(\d{2})(AM|PM)_(\d{2})-([A-Za-z]{3})-(\d{2})$/
-    guard let match = try? pattern.wholeMatch(in: raw) else { return raw }
+    guard let match = try? pattern.wholeMatch(in: name) else { return raw }
     let (_, hh, mm, ampm, dd, month, _) = match.output
     return "\(Int(dd) ?? 0) \(month) · \(Int(hh) ?? 0):\(mm) \(ampm)"
 }

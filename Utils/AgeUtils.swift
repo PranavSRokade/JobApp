@@ -1,8 +1,10 @@
 import Foundation
 
 func parseScrapeDate(_ sheetName: String) -> Date? {
+    // Tabs may carry a region prefix, e.g. "US_03-42PM_12-Oct-26"
+    let name = sheetName.replacingOccurrences(of: #"^[A-Z]{2}_"#, with: "", options: .regularExpression)
     let pattern = /^(\d{2})-(\d{2})(AM|PM)_(\d{2})-([A-Za-z]{3})-(\d{2})$/
-    guard let m = try? pattern.wholeMatch(in: sheetName) else { return nil }
+    guard let m = try? pattern.wholeMatch(in: name) else { return nil }
     let (_, hh, mm, ampm, dd, monthAbbr, yy) = m.output
 
     var hour = Int(hh) ?? 0
