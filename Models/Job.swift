@@ -16,8 +16,13 @@ struct Job: Codable, Identifiable {
     let companySize: Int
     let scoreSource: String
     let jd: String?
+    // "yes" | "no" | "na" from the scorer; nil/"" on tabs scraped before Oct 2026
+    let sponsorship: String?
 
     var id: Int { jobId }
+
+    var sponsored: Bool { sponsorship == "yes" }
+    var noSponsorship: Bool { sponsorship == "no" }
 
     var averageScore: Int {
         (skills + experience + seniority + locationFit + companySize) / 5

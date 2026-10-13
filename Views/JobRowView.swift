@@ -12,7 +12,7 @@ struct JobRowView: View {
             // Rank badge with optional star overlay
             ZStack(alignment: .topTrailing) {
                 Text("\(job.rank)")
-                    .font(.system(size: 16, weight: .heavy, design: .rounded))
+                    .font(.system(size: job.rank >= 100 ? 13 : 16, weight: .heavy, design: .rounded))
                     .foregroundColor(.white)
                     .frame(width: 40, height: 40)
                     .background(rankColor)
@@ -43,6 +43,23 @@ struct JobRowView: View {
                             .padding(.vertical, 2)
                             .background(Color.orange.opacity(0.2))
                             .foregroundColor(.orange)
+                            .clipShape(Capsule())
+                    }
+                    if job.sponsored {
+                        Text("VISA")
+                            .font(.system(size: 10, weight: .bold))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(Color.green.opacity(0.2))
+                            .foregroundColor(.green)
+                            .clipShape(Capsule())
+                    } else if job.noSponsorship {
+                        Text("NO VISA")
+                            .font(.system(size: 10, weight: .medium))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(Color.red.opacity(0.15))
+                            .foregroundColor(.red)
                             .clipShape(Capsule())
                     }
                 }

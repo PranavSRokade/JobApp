@@ -12,7 +12,7 @@ final class JobsViewModel: ObservableObject {
     @Published var sheetName: String?
     @Published var availableSheets: [String] = []
     @Published var selectedSheet: String? = nil {
-        didSet { Task { await load() } }
+        didSet { reload() }
     }
     let selectedProfile = activeProfile
     // "uk" or "us" — which market's sheet tabs to show. Remembered per profile.
@@ -20,8 +20,11 @@ final class JobsViewModel: ObservableObject {
         didSet {
             guard oldValue != region else { return }
             UserDefaults.standard.set(region, forKey: "region_\(activeProfile)")
-            // Sheet names differ per region, so drop the selection and fetch that region's latest
-            if selectedSheet != nil { selectedSheet = nil } else { Task { await load() } }
+            // Tabs differ per region: clear the old list so the spinner shows, then fetch this region's latest.
+            jobs = []
+            sheetName = nil
+            availableSheets = []
+            selectedSheet = nil // didSet → reload() (cancels any fetch still in flight)
         }
     }
     @Published var starredStore: StarredJobsStore = StarredJobsStore(profile: activeProfile)
@@ -31,6 +34,7 @@ final class JobsViewModel: ObservableObject {
     let chatStore: FeatureChatStore = FeatureChatStore(profile: activeProfile)
     private var filtersCancellable: AnyCancellable?
     private var starsCancellable: AnyCancellable?
+    private var loadTask: Task<Void, Never>?
     @Published var sheetsWithStars: Set<String> = []
     private var jobSheetMap: [Int: String] = [:]
     @Published var showStarredOnly = false
@@ -113,11 +117,19 @@ final class JobsViewModel: ObservableObject {
         UserDefaults.standard.set(raw, forKey: "jobSheetMap_\(selectedProfile)")
     }
 
+    // One fetch in flight at a time: switching region/sheet quickly must not let an older
+    // response land after a newer one.
+    private func reload() {
+        loadTask?.cancel()
+        loadTask = Task { await load() }
+    }
+
     func load(silent: Bool = false) async {
         if !silent { isLoading = true }
         errorMessage = nil
         do {
             let response = try await JobsService.fetchJobs(profile: selectedProfile, sheet: selectedSheet, region: region)
+            guard !Task.isCancelled else { return }
             jobs = response.jobs.sorted { $0.rank > $1.rank }
             sheetName = response.sheet
             availableSheets = response.sheets
@@ -127,6 +139,7 @@ final class JobsViewModel: ObservableObject {
                 sheetsWithStars = Set(starredStore.starredIds.compactMap { jobSheetMap[$0] })
             }
         } catch {
+            guard !Task.isCancelled else { return }
             errorMessage = error.localizedDescription
         }
         isLoading = false

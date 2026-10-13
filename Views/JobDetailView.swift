@@ -38,6 +38,15 @@ struct JobDetailView: View {
                             .font(.subheadline)
                             .foregroundColor(.orange)
                     }
+                    if job.sponsored {
+                        Label("Visa sponsorship offered", systemImage: "checkmark.seal.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(.green)
+                    } else if job.noSponsorship {
+                        Label("No visa sponsorship", systemImage: "xmark.seal")
+                            .font(.subheadline)
+                            .foregroundColor(.red)
+                    }
                 }
 
                 Divider()

@@ -28,6 +28,12 @@ struct JobsListView: View {
                         systemImage: "star",
                         description: Text("Swipe right on a job to star it")
                     )
+                } else if !vm.isLoading && vm.jobs.isEmpty {
+                    ContentUnavailableView(
+                        "No jobs yet",
+                        systemImage: "tray",
+                        description: Text("Nothing has been scraped for \(vm.region == "us" ? "the USA" : "the UK") yet")
+                    )
                 } else {
                     List(vm.filteredJobs) { job in
                         NavigationLink(destination: JobDetailView(job: job, sheetName: vm.sheetName, starredStore: vm.starredStore, profile: vm.selectedProfile)) {
@@ -38,9 +44,6 @@ struct JobsListView: View {
                     .refreshable { await vm.load() }
                     .searchable(text: $vm.searchText, prompt: "Search jobs…")
                 }
-            }
-            .safeAreaInset(edge: .top, spacing: 0) {
-                regionPicker
             }
             .navigationTitle(vm.showStarredOnly ? "\(vm.filteredJobs.count) Starred" : "\(vm.filteredJobs.count) Jobs")
             .toolbar {
@@ -76,6 +79,9 @@ struct JobsListView: View {
                     if !vm.availableSheets.isEmpty {
                         sheetPicker
                     }
+                }
+                ToolbarItem(placement: .bottomBar) {
+                    regionPicker
                 }
             }
         }
@@ -117,13 +123,11 @@ struct JobsListView: View {
 
     private var regionPicker: some View {
         Picker("Region", selection: $vm.region) {
-            Text("🇬🇧 UK").tag("uk")
-            Text("🇺🇸 USA").tag("us")
+            Text("UK").tag("uk")
+            Text("USA").tag("us")
         }
         .pickerStyle(.segmented)
-        .padding(.horizontal)
-        .padding(.vertical, 8)
-        .background(.bar)
+        .frame(maxWidth: 260)
     }
 
     private var sheetPicker: some View {
