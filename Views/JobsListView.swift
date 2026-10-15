@@ -45,6 +45,18 @@ struct JobsListView: View {
                     .searchable(text: $vm.searchText, prompt: "Search jobs…")
                 }
             }
+            // Fixed bar at the bottom edge: the list is inset above it, so nothing scrolls underneath
+            // (iOS 26's floating .bottomBar toolbar let rows slide under the control).
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                VStack(spacing: 0) {
+                    Divider()
+                    regionPicker
+                        .padding(.horizontal)
+                        .padding(.vertical, 8)
+                        .frame(maxWidth: .infinity)
+                        .background(.bar)
+                }
+            }
             .navigationTitle(vm.showStarredOnly ? "\(vm.filteredJobs.count) Starred" : "\(vm.filteredJobs.count) Jobs")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -79,9 +91,6 @@ struct JobsListView: View {
                     if !vm.availableSheets.isEmpty {
                         sheetPicker
                     }
-                }
-                ToolbarItem(placement: .bottomBar) {
-                    regionPicker
                 }
             }
         }
