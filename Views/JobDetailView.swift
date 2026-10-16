@@ -13,8 +13,13 @@ struct JobDetailView: View {
     @State private var isGeneratingCoverLetter = false
     @State private var coverLetterPdf: Data? = nil
     @State private var coverLetterError: String? = nil
+    // Description fetched on demand when the scraper couldn't get it (LinkedIn rate limit)
+    @State private var fetchedJD: String? = nil
+    @State private var isFetchingJD = false
+    @State private var fetchJDError: String? = nil
 
     private var isStarred: Bool { starredStore.isStarred(job.jobId) }
+    private var effectiveJD: String? { job.jd ?? fetchedJD ?? JDCache.load(for: job.jobId) }
 
     var body: some View {
         ScrollView {
@@ -97,7 +102,7 @@ struct JobDetailView: View {
                 }
 
                 // Generate CV + Cover Letter — both require a JD
-                if let jd = job.jd {
+                if let jd = effectiveJD {
                     let hasCachedCV = CVCacheStore.load(for: job.jobId) != nil
                     HStack(spacing: 10) {
                         Button {
@@ -175,10 +180,43 @@ struct JobDetailView: View {
                     }
                 }
 
-                // JD
-                let jdText = job.jd ?? JobDetailView.testJD
+                // JD — or, when the scraper was rate-limited by LinkedIn, an on-demand fetch
                 Divider()
-                JDSectionView(text: jdText)
+                if let jdText = effectiveJD {
+                    JDSectionView(text: jdText)
+                } else {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Job Description")
+                            .font(.headline)
+                        Text("LinkedIn blocked the scraper when this job was collected, so there's no description yet — which is also why CV and cover-letter generation are hidden.")
+                            .font(.system(size: 14))
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Button {
+                            fetchDescription()
+                        } label: {
+                            Group {
+                                if isFetchingJD {
+                                    HStack(spacing: 8) {
+                                        ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                        Text("Fetching…")
+                                    }
+                                } else {
+                                    Label("Fetch description", systemImage: "arrow.down.doc")
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.indigo)
+                            .foregroundColor(.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
+                        .disabled(isFetchingJD)
+                        if let err = fetchJDError {
+                            Text(err).font(.caption).foregroundColor(.red).fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
             }
             .padding()
         }
@@ -199,7 +237,7 @@ struct JobDetailView: View {
             set: { if !$0 { cvResult = nil } }
         )) {
             if let result = cvResult {
-                CVPreviewView(jd: job.jd ?? "", jobId: job.jobId, profile: profile, result: result)
+                CVPreviewView(jd: effectiveJD ?? "", jobId: job.jobId, profile: profile, result: result)
             }
         }
         .sheet(isPresented: Binding(
@@ -209,6 +247,19 @@ struct JobDetailView: View {
             if let pdf = coverLetterPdf {
                 CoverLetterPreviewView(pdfData: pdf, jobTitle: job.title)
             }
+        }
+    }
+
+    private func fetchDescription() {
+        isFetchingJD = true
+        fetchJDError = nil
+        Task {
+            do {
+                fetchedJD = try await JobsService.fetchJobDescription(url: job.link, profile: profile, sheet: sheetName, jobId: job.jobId)
+            } catch {
+                fetchJDError = error.localizedDescription
+            }
+            isFetchingJD = false
         }
     }
 
@@ -364,68 +415,6 @@ private struct JDSectionView: View {
             }
         }
     }
-}
-
-// MARK: - Test data (remove once job-tracker populates FULL_JD column)
-
-private extension JobDetailView {
-    static let testJD = """
-This is a job that Jill, our AI Recruiter, is recruiting for on behalf of one of our customers.
-
-She will pick the best candidates from Jack's network.
-
-The next step is to speak to Jack.
-
-Job Title
-
-Intermediate Software Engineer (React)
-
-Salary
-
-£75k
-
-Company Description
-
-Goodlord is a £17M-backed, profitable PropTech scale-up in London revolutionizing the rental market for over 1 million tenants annually.
-
-Job Description
-
-Join a top-tier engineering team building a digital-first rental platform. You will develop complex features using React and TypeScript, transitioning legacy interfaces into a modern frontend architecture. Working in self-organizing squads, you'll solve real-world problems for thousands of agents while benefiting from a culture that prioritizes learning and professional growth.
-
-Location
-
-London, UK
-
-Why this role is remarkable
-
-Work on a platform processing over £1B in annual transactions, directly impacting the lives of millions of renters and thousands of letting agents across the UK.
-Join a "Great Place to Work" certified organization with an 83% employee endorsement rate, ranked among the UK's top tech employers for wellbeing and development.
-Access a £1,000 annual development fund and 3 months of fully-paid parental leave, within a profitable scale-up that values transparency and stable career progression.
-
-What You Will Do
-
-Deliver high-impact features using React and TypeScript, contributing to the strategic migration of the platform's UI toward a fully modern React architecture.
-Pair with senior engineers to architect and spec complex features, ensuring code quality through peer reviews and comprehensive automated unit testing.
-Participate in self-organizing agile squads using Kanban, collaborating closely with stakeholders to iterate quickly based on direct user feedback and market regulatory changes.
-
-The ideal candidate
-
-Possesses 5-8 years of commercial experience with React and TypeScript in a production environment, ideally within a product-led company.
-Demonstrates strong computer science foundations, proficiency with relational databases (MySQL/Aurora), and a deep understanding of web application security and common vulnerabilities.
-Exhibits a collaborative mindset, comfortable with ambiguity and eager to learn new technologies like PHP/Symfony or utility-first CSS frameworks like Tailwind.
-
-Who are Jack & Jill?
-
-Ok, I'll go first. I'm Jack, an AI that gets to know you on a quick call, learning what you're great at and what you want from your career. Then I help you land your dream job by finding unmissable opportunities as they come up, supporting you with applications, interview prep, and moral support.
-
-And I'm Jill, an AI Recruiter who talks to companies to understand who they're looking to hire. Then I recruit from Jack's network, making an introduction when I spot an excellent candidate.
-
-How does this work?
-
-Jack's an AI agent for job searching and career coaching. He works for you.
-Jill is the AI recruiter working for the company. She recruits from Jack's network.
-If it's a match and the company wants to meet you, they'll make the intro. In the meantime, if you'd like, Jack will send you excellent alternatives.
-"""
 }
 
 private struct ScoreCard: View {
