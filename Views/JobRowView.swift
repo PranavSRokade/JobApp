@@ -64,10 +64,23 @@ struct JobRowView: View {
                     }
                 }
 
-                Text(job.location)
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(job.location)
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                    if let salary = job.salaryText {
+                        Text(salary)
+                            .font(.system(size: 10, weight: .semibold))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(Color.teal.opacity(0.15))
+                            .foregroundColor(.teal)
+                            .clipShape(Capsule())
+                            .lineLimit(1)
+                            .fixedSize()
+                    }
+                }
 
                 HStack(spacing: 2) {
                     Text(actualAge(sheetName: sheetName, ageText: job.age))

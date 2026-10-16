@@ -61,8 +61,19 @@ struct CVProfileBulletPools: Codable {
     }
 }
 
+// Per-profile text knobs used by the worker when building the CV (blank = worker default)
+struct CVSettings: Codable, Equatable {
+    var yearsExperience: String   // "3.5+" → "with 3.5+ years of experience"
+    var summaryDegree: String     // short degree name in the summary paragraph
+    var educationTitle: String    // full LaTeX heading under Education
+
+    static let empty = CVSettings(yearsExperience: "", summaryDegree: "", educationTitle: "")
+}
+
 struct CVProfile: Codable {
     var skills: [String]
     var bullets: CVProfileBulletPools
     var hasCustomTemplate: Bool
+    var hasCustomPrompt: Bool?
+    var settings: CVSettings?
 }

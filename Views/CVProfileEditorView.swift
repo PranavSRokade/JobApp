@@ -57,6 +57,11 @@ private struct CVProfileTabView: View {
                     .tabItem { Label("Bullets", systemImage: "text.alignleft") }
                 TemplateTab(hasCustomTemplate: $profile.hasCustomTemplate, profileKey: profileKey)
                     .tabItem { Label("Template", systemImage: "doc.text") }
+                SettingsTab(
+                    settings: Binding(get: { profile.settings ?? .empty }, set: { profile.settings = $0 }),
+                    profileKey: profileKey
+                )
+                    .tabItem { Label("Settings", systemImage: "gearshape") }
             }
             .navigationTitle("CV Profile")
             .navigationBarTitleDisplayMode(.inline)
@@ -567,3 +572,209 @@ private let defaultSkillsList = [
     "React Native Biometrics", "Face ID", "Touch ID", "MVVM",
     "Clean Architecture", "JUnit", "GitHub", "Git", "State Management",
 ]
+
+// MARK: - Tab 4: Settings (summary/education text + AI prompt)
+
+private struct SettingsTab: View {
+    @Binding var settings: CVSettings
+    let profileKey: String
+    @State private var isSaving = false
+    @State private var saveMessage: String? = nil
+    @State private var isError = false
+    @State private var showPrompt = false
+
+    var body: some View {
+        List {
+            Section {
+                TextField("e.g. 3.5+", text: $settings.yearsExperience)
+                    .autocorrectionDisabled()
+            } header: {
+                Text("Years of experience")
+            } footer: {
+                Text("Summary line: “… with N years of experience …”")
+            }
+            Section {
+                TextField("e.g. MSc in Adv. Software Engineering", text: $settings.summaryDegree)
+                    .autocorrectionDisabled()
+            } header: {
+                Text("Degree (summary line)")
+            } footer: {
+                Text("Short form used in the summary paragraph.")
+            }
+            Section {
+                TextField("e.g. Masters in Advanced Software Engineering $\\vert$ Merit", text: $settings.educationTitle, axis: .vertical)
+                    .font(.system(size: 13, design: .monospaced))
+                    .autocorrectionDisabled()
+            } header: {
+                Text("Education heading")
+            } footer: {
+                Text("Full heading under Education (LaTeX). Shorten it if the CV runs out of space. Leave any field blank to use the built-in default.")
+            }
+            Section {
+                Button { showPrompt = true } label: {
+                    HStack {
+                        Label("Edit AI prompt", systemImage: "text.badge.star").foregroundColor(.indigo)
+                        Spacer()
+                        Image(systemName: "chevron.right").foregroundColor(.secondary).font(.caption)
+                    }
+                }
+                .buttonStyle(.plain)
+            } header: {
+                Text("AI")
+            } footer: {
+                Text("The instructions sent to the model when generating a CV.")
+            }
+        }
+        .listStyle(.insetGrouped)
+        .safeAreaInset(edge: .bottom) {
+            saveBar(isSaving: isSaving, message: saveMessage, isError: isError) {
+                Task { await save() }
+            }
+        }
+        .sheet(isPresented: $showPrompt) {
+            PromptEditorSheet(profileKey: profileKey)
+        }
+    }
+
+    private func save() async {
+        isSaving = true
+        saveMessage = nil
+        do {
+            try await CVProfileService.saveSettings(settings, for: profileKey)
+            saveMessage = "Saved"
+            isError = false
+        } catch {
+            saveMessage = error.localizedDescription
+            isError = true
+        }
+        isSaving = false
+    }
+}
+
+// MARK: - CV prompt editor
+
+private struct PromptEditorSheet: View {
+    let profileKey: String
+    @Environment(\.dismiss) private var dismiss
+    @State private var text = ""
+    @State private var defaultText = ""
+    @State private var placeholders: [String] = []
+    @State private var isCustom = false
+    @State private var isLoading = true
+    @State private var isSaving = false
+    @State private var message: String? = nil
+    @State private var isError = false
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if isLoading {
+                    ProgressView("Loading prompt…")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    VStack(spacing: 0) {
+                        HStack(spacing: 6) {
+                            Image(systemName: isCustom ? "checkmark.circle.fill" : "circle")
+                                .foregroundColor(isCustom ? .indigo : .secondary)
+                            Text(isCustom ? "Custom prompt active" : "Using built-in prompt")
+                                .font(.caption)
+                            Spacer()
+                            if let message {
+                                Text(message).font(.caption).foregroundColor(isError ? .red : .green)
+                            }
+                        }
+                        .padding(.horizontal).padding(.vertical, 8)
+                        Divider()
+                        TextEditor(text: $text)
+                            .font(.system(size: 12, design: .monospaced))
+                            .autocorrectionDisabled()
+                            .padding(8)
+                        Divider()
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 6) {
+                                ForEach(placeholders, id: \.self) { p in
+                                    Text("{{\(p)}}")
+                                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                                        .padding(.horizontal, 6).padding(.vertical, 3)
+                                        .background(Color.indigo.opacity(0.12))
+                                        .foregroundColor(.indigo)
+                                        .clipShape(Capsule())
+                                }
+                            }
+                            .padding(.horizontal).padding(.vertical, 6)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("CV Prompt")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Close") { dismiss() }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    HStack(spacing: 14) {
+                        Button("Reset") { Task { await reset() } }
+                            .disabled(isSaving || !isCustom)
+                        Button("Save") { Task { await save() } }
+                            .fontWeight(.semibold)
+                            .disabled(isSaving || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                    }
+                }
+            }
+            .task { await load() }
+        }
+    }
+
+    private func load() async {
+        isLoading = true
+        do {
+            let info = try await CVProfileService.fetchPrompt(for: profileKey)
+            text = info.prompt
+            defaultText = info.defaultPrompt
+            placeholders = info.placeholders
+            isCustom = info.isCustom
+        } catch {
+            message = error.localizedDescription
+            isError = true
+        }
+        isLoading = false
+    }
+
+    private func save() async {
+        isSaving = true
+        message = nil
+        do {
+            try await CVProfileService.savePrompt(text, for: profileKey)
+            isCustom = true
+            message = "Saved"
+            isError = false
+        } catch {
+            message = error.localizedDescription
+            isError = true
+        }
+        isSaving = false
+    }
+
+    private func reset() async {
+        isSaving = true
+        message = nil
+        do {
+            try await CVProfileService.resetPrompt(for: profileKey)
+            text = defaultText
+            isCustom = false
+            message = "Reset to built-in"
+            isError = false
+        } catch {
+            message = error.localizedDescription
+            isError = true
+        }
+        isSaving = false
+    }
+}

@@ -47,6 +47,11 @@ struct JobDetailView: View {
                             .font(.subheadline)
                             .foregroundColor(.red)
                     }
+                    if let salary = job.salaryText {
+                        Label(salary, systemImage: "banknote")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(.teal)
+                    }
                 }
 
                 Divider()
@@ -149,6 +154,24 @@ struct JobDetailView: View {
                     }
                     if let err = coverLetterError {
                         Text(err).font(.caption).foregroundColor(.red).multilineTextAlignment(.center)
+                    }
+                }
+
+                // Visa wording the scorer based the sponsorship decision on
+                if let notes = job.visaNotesText, job.sponsored || job.noSponsorship {
+                    Divider()
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label(job.sponsored ? "Visa sponsorship — from the posting" : "Visa — from the posting",
+                              systemImage: job.sponsored ? "checkmark.seal.fill" : "xmark.seal")
+                            .font(.headline)
+                            .foregroundColor(job.sponsored ? .green : .red)
+                        Text(notes)
+                            .font(.system(size: 14))
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background((job.sponsored ? Color.green : Color.red).opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
                 }
 

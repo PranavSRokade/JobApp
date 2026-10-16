@@ -18,11 +18,17 @@ struct Job: Codable, Identifiable {
     let jd: String?
     // "yes" | "no" | "na" from the scorer; nil/"" on tabs scraped before Oct 2026
     let sponsorship: String?
+    // "£55,000 – £65,000" when the posting states pay; nil/"" otherwise
+    let salary: String?
+    // the visa/work-authorisation sentences the scorer based `sponsorship` on
+    let visaNotes: String?
 
     var id: Int { jobId }
 
     var sponsored: Bool { sponsorship == "yes" }
     var noSponsorship: Bool { sponsorship == "no" }
+    var salaryText: String? { (salary ?? "").isEmpty ? nil : salary }
+    var visaNotesText: String? { (visaNotes ?? "").isEmpty ? nil : visaNotes }
 
     var averageScore: Int {
         (skills + experience + seniority + locationFit + companySize) / 5

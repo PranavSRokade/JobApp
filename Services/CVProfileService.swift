@@ -22,6 +22,51 @@ struct CVProfileService {
         _ = try await put(path: "/api/profile/bullets?profile=\(profile)", body: Body(bullets: pools))
     }
 
+    // MARK: Settings (years of experience, degree text, education heading)
+
+    static func saveSettings(_ settings: CVSettings, for profile: String) async throws {
+        _ = try await put(path: "/api/profile/settings?profile=\(profile)", body: settings)
+    }
+
+    // MARK: CV prompt template
+
+    struct PromptInfo: Decodable {
+        let prompt: String
+        let isCustom: Bool
+        let defaultPrompt: String
+        let placeholders: [String]
+    }
+
+    static func fetchPrompt(for profile: String) async throws -> PromptInfo {
+        guard let url = URL(string: "\(base)/api/profile/prompt?profile=\(profile)") else { throw CVServiceError.decodingError }
+        let (data, _) = try await URLSession.shared.data(from: url)
+        return try JSONDecoder().decode(PromptInfo.self, from: data)
+    }
+
+    static func savePrompt(_ text: String, for profile: String) async throws {
+        guard let url = URL(string: "\(base)/api/profile/prompt?profile=\(profile)") else { throw CVServiceError.decodingError }
+        var req = URLRequest(url: url)
+        req.httpMethod = "PUT"
+        req.setValue("text/plain", forHTTPHeaderField: "Content-Type")
+        req.httpBody = text.data(using: .utf8)
+        req.timeoutInterval = 30
+        let (data, response) = try await URLSession.shared.data(for: req)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard status == 200 else {
+            let msg = (try? JSONDecoder().decode([String: String].self, from: data))?["error"] ?? "Save failed"
+            throw CVServiceError.server(status, msg)
+        }
+    }
+
+    static func resetPrompt(for profile: String) async throws {
+        guard let url = URL(string: "\(base)/api/profile/prompt?profile=\(profile)") else { throw CVServiceError.decodingError }
+        var req = URLRequest(url: url)
+        req.httpMethod = "DELETE"
+        req.timeoutInterval = 30
+        let (_, response) = try await URLSession.shared.data(for: req)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw CVServiceError.decodingError }
+    }
+
     static func uploadTemplate(_ tex: String, for profile: String) async throws {
         guard let url = URL(string: "\(base)/api/profile/template?profile=\(profile)") else { throw CVServiceError.decodingError }
         var req = URLRequest(url: url)
