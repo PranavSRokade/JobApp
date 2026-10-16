@@ -54,6 +54,16 @@ struct CVService {
         return (decoded.latex, pdfData)
     }
 
+    /// First-person answer to an application question ("why do you want to join us…"), grounded in
+    /// the JD and the cached CV (or the profile's background when no CV has been generated yet).
+    static func generateAnswer(jd: String, company: String, title: String, question: String, latex: String?, profile: String = "spencer") async throws -> String {
+        struct Body: Encodable { let jd: String; let company: String; let title: String; let question: String; let latex: String?; let profile: String }
+        struct Resp: Decodable { let text: String }
+        let data = try await post(path: "/api/answer", body: Body(jd: jd, company: company, title: title, question: question, latex: latex, profile: profile))
+        guard let decoded = try? JSONDecoder().decode(Resp.self, from: data), !decoded.text.isEmpty else { throw CVServiceError.decodingError }
+        return decoded.text
+    }
+
     static func generateCoverLetter(jd: String, latex: String?, profile: String = "spencer") async throws -> Data {
         struct Body: Encodable { let jd: String; let latex: String?; let profile: String }
         let data = try await post(path: "/api/cover-letter", body: Body(jd: jd, latex: latex, profile: profile))

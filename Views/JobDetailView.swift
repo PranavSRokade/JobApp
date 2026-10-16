@@ -17,6 +17,7 @@ struct JobDetailView: View {
     @State private var fetchedJD: String? = nil
     @State private var isFetchingJD = false
     @State private var fetchJDError: String? = nil
+    @State private var showAnswer = false
 
     private var isStarred: Bool { starredStore.isStarred(job.jobId) }
     private var effectiveJD: String? { job.jd ?? fetchedJD ?? JDCache.load(for: job.jobId) }
@@ -154,6 +155,19 @@ struct JobDetailView: View {
                         .disabled(isGeneratingCoverLetter)
                     }
 
+                    // "Why do you want to work here?" style answer, grounded in the JD + CV
+                    Button {
+                        showAnswer = true
+                    } label: {
+                        Label("Why \(job.company)?", systemImage: "bubble.left.and.text.bubble.right")
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.indigo.opacity(0.12))
+                            .foregroundColor(.indigo)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+
                     if let err = cvError {
                         Text(err).font(.caption).foregroundColor(.red).multilineTextAlignment(.center)
                     }
@@ -238,6 +252,11 @@ struct JobDetailView: View {
         )) {
             if let result = cvResult {
                 CVPreviewView(jd: effectiveJD ?? "", jobId: job.jobId, profile: profile, result: result)
+            }
+        }
+        .sheet(isPresented: $showAnswer) {
+            if let jd = effectiveJD {
+                AnswerSheet(jd: jd, company: job.company, title: job.title, latex: CVCacheStore.load(for: job.jobId)?.latex, profile: profile)
             }
         }
         .sheet(isPresented: Binding(
@@ -413,6 +432,131 @@ private struct JDSectionView: View {
                     }
                 }
             }
+        }
+    }
+}
+
+// MARK: - "Why this company?" answer
+
+private struct AnswerSheet: View {
+    let jd: String
+    let company: String
+    let title: String
+    let latex: String?
+    let profile: String
+    @Environment(\.dismiss) private var dismiss
+    @State private var question: String
+    @State private var answer: String = ""
+    @State private var isGenerating = false
+    @State private var error: String? = nil
+    @State private var copied = false
+
+    init(jd: String, company: String, title: String, latex: String?, profile: String) {
+        self.jd = jd
+        self.company = company
+        self.title = title
+        self.latex = latex
+        self.profile = profile
+        _question = State(initialValue: "What motivates you about joining \(company) and where are you in your career that makes this the right time to join us now?")
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Question")
+                        .font(.headline)
+                    TextField("Paste the application question…", text: $question, axis: .vertical)
+                        .lineLimit(2...6)
+                        .font(.system(size: 14))
+                        .padding(10)
+                        .background(Color(.secondarySystemGroupedBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+
+                    Button {
+                        generate()
+                    } label: {
+                        Group {
+                            if isGenerating {
+                                HStack(spacing: 8) {
+                                    ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    Text("Writing…")
+                                }
+                            } else {
+                                Label(answer.isEmpty ? "Generate answer" : "Regenerate", systemImage: "sparkles")
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.indigo)
+                        .foregroundColor(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                    .disabled(isGenerating || question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                    if let error {
+                        Text(error).font(.caption).foregroundColor(.red).fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    if !answer.isEmpty {
+                        HStack {
+                            Text("Answer")
+                                .font(.headline)
+                            Spacer()
+                            Button {
+                                UIPasteboard.general.string = answer
+                                copied = true
+                                Task {
+                                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                                    copied = false
+                                }
+                            } label: {
+                                Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
+                                    .font(.subheadline)
+                            }
+                        }
+                        Text(answer)
+                            .font(.system(size: 15))
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color(.secondarySystemGroupedBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                        Text("\(answer.split(whereSeparator: { $0.isWhitespace }).count) words" + (latex == nil ? " · based on profile background (no CV generated yet)" : " · based on the generated CV"))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding()
+            }
+            .navigationTitle("Why \(company)?")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Close") { dismiss() }
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                    }
+                }
+            }
+            .task { if answer.isEmpty { generate() } }
+        }
+    }
+
+    private func generate() {
+        isGenerating = true
+        error = nil
+        Task {
+            do {
+                answer = try await CVService.generateAnswer(jd: jd, company: company, title: title, question: question, latex: latex, profile: profile)
+            } catch {
+                self.error = error.localizedDescription
+            }
+            isGenerating = false
         }
     }
 }
