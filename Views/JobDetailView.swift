@@ -4,7 +4,9 @@ struct JobDetailView: View {
     let job: Job
     let sheetName: String?
     @ObservedObject var starredStore: StarredJobsStore
+    @ObservedObject var applicationsStore: ApplicationsStore
     var profile: String = "spencer"
+    var region: String = "uk"
 
     @State private var isGeneratingCV = false
     @State private var cvResult: CVResult? = nil
@@ -39,7 +41,11 @@ struct JobDetailView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
 
-                    if job.over100 {
+                    if let applicants = job.applicantsText {
+                        Label(applicants, systemImage: "person.3")
+                            .font(.subheadline)
+                            .foregroundColor(job.over100 ? .orange : .secondary)
+                    } else if job.over100 {
                         Label("100+ applicants", systemImage: "person.3")
                             .font(.subheadline)
                             .foregroundColor(.orange)
@@ -59,6 +65,9 @@ struct JobDetailView: View {
                             .foregroundColor(.teal)
                     }
                 }
+
+                // Application tracking — mark as applied, change stage, see how long ago
+                applicationCard
 
                 Divider()
 
@@ -266,6 +275,93 @@ struct JobDetailView: View {
             if let pdf = coverLetterPdf {
                 CoverLetterPreviewView(pdfData: pdf, jobTitle: job.title)
             }
+        }
+    }
+
+    // MARK: - Application tracking
+
+    @ViewBuilder
+    private var applicationCard: some View {
+        if let app = applicationsStore.application(for: job.jobId) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Label(app.appliedAgoText, systemImage: "paperplane.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.green)
+                    Spacer()
+                    Menu {
+                        ForEach(applicationsStore.stages) { stage in
+                            Button {
+                                applicationsStore.setStage(job.jobId, stageId: stage.id)
+                            } label: {
+                                if stage.id == app.stageId {
+                                    Label(stage.name, systemImage: "checkmark")
+                                } else {
+                                    Text(stage.name)
+                                }
+                            }
+                        }
+                        Divider()
+                        Button(role: .destructive) {
+                            applicationsStore.unmark(job.jobId)
+                        } label: {
+                            Label("Remove from applications", systemImage: "trash")
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(applicationsStore.stageName(app.stageId))
+                            Image(systemName: "chevron.up.chevron.down").font(.caption2)
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.indigo.opacity(0.12))
+                        .foregroundColor(.indigo)
+                        .clipShape(Capsule())
+                    }
+                }
+                if let summary = applicantsSummary(app) {
+                    Label(summary, systemImage: "person.3")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                if app.history.count > 1 {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(app.history.suffix(4)) { change in
+                            Text("\(applicationsStore.stageName(change.stageId)) · \(change.at.formatted(date: .abbreviated, time: .omitted))")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.green.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+        } else {
+            Button {
+                applicationsStore.markApplied(job, region: region, sheet: sheetName)
+            } label: {
+                Label("Mark as applied", systemImage: "paperplane")
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.green.opacity(0.15))
+                    .foregroundColor(.green)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+        }
+    }
+
+    /// "31 applicants when listed · 67 when you applied"
+    private func applicantsSummary(_ app: Application) -> String? {
+        let listed = app.applicantsAtFetch.flatMap { $0.isEmpty ? nil : $0 }
+        let applied = app.applicantsAtApply.flatMap { $0.isEmpty ? nil : $0 }
+        switch (listed, applied) {
+        case let (l?, a?) where l != a: return "\(l) when listed · \(a) when you applied"
+        case let (l?, _): return "\(l) when listed"
+        case let (nil, a?): return "\(a) when you applied"
+        default: return nil
         }
     }
 

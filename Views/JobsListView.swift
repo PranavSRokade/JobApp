@@ -9,6 +9,7 @@ struct JobsListView: View {
     @State private var showQuickCV = false
     @State private var showBulletSuggester = false
     @State private var showFeatureChats = false
+    @State private var showApplications = false
 
     var body: some View {
         NavigationStack {
@@ -36,8 +37,8 @@ struct JobsListView: View {
                     )
                 } else {
                     List(vm.filteredJobs) { job in
-                        NavigationLink(destination: JobDetailView(job: job, sheetName: vm.sheetName, starredStore: vm.starredStore, profile: vm.selectedProfile)) {
-                            JobRowView(job: job, sheetName: vm.sheetName, starredStore: vm.starredStore)
+                        NavigationLink(destination: JobDetailView(job: job, sheetName: vm.sheetName, starredStore: vm.starredStore, applicationsStore: vm.applicationsStore, profile: vm.selectedProfile, region: vm.region)) {
+                            JobRowView(job: job, sheetName: vm.sheetName, starredStore: vm.starredStore, isApplied: vm.applicationsStore.isApplied(job.jobId))
                         }
                     }
                     .listStyle(.plain)
@@ -68,6 +69,10 @@ struct JobsListView: View {
                         Button { showFilters = true } label: {
                             Label(vm.filtersStore.filters.isDefault ? "Filters" : "Filters (active)",
                                   systemImage: vm.filtersStore.filters.isDefault ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+                        }
+                        Button { showApplications = true } label: {
+                            Label(vm.applicationsStore.applications.isEmpty ? "Applications" : "Applications (\(vm.applicationsStore.applications.count))",
+                                  systemImage: "paperplane")
                         }
                         Divider()
                         Button { showFeatureChats = true } label: {
@@ -106,6 +111,9 @@ struct JobsListView: View {
         }
         .sheet(isPresented: $showQuickCV) {
             QuickCVView(profile: vm.selectedProfile)
+        }
+        .sheet(isPresented: $showApplications) {
+            ApplicationsView(store: vm.applicationsStore, starredStore: vm.starredStore, profile: vm.selectedProfile)
         }
         .sheet(isPresented: $showFeatureChats) {
             FeatureChatsListView(store: vm.chatStore, profile: vm.selectedProfile)

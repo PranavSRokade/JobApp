@@ -22,8 +22,12 @@ struct Job: Codable, Identifiable {
     let salary: String?
     // the visa/work-authorisation sentences the scorer based `sponsorship` on
     let visaNotes: String?
+    // LinkedIn's applicant caption when scraped, e.g. "31 applicants", "Over 200 applicants"
+    let applicants: String?
 
     var id: Int { jobId }
+
+    var applicantsText: String? { (applicants ?? "").isEmpty ? nil : applicants }
 
     var sponsored: Bool { sponsorship == "yes" }
     var noSponsorship: Bool { sponsorship == "no" }

@@ -4,6 +4,7 @@ struct JobRowView: View {
     let job: Job
     let sheetName: String?
     @ObservedObject var starredStore: StarredJobsStore
+    var isApplied: Bool = false
 
     private var isStarred: Bool { starredStore.isStarred(job.jobId) }
 
@@ -60,6 +61,15 @@ struct JobRowView: View {
                             .padding(.vertical, 2)
                             .background(Color.red.opacity(0.15))
                             .foregroundColor(.red)
+                            .clipShape(Capsule())
+                    }
+                    if isApplied {
+                        Text("APPLIED")
+                            .font(.system(size: 10, weight: .bold))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(Color.blue.opacity(0.15))
+                            .foregroundColor(.blue)
                             .clipShape(Capsule())
                     }
                 }

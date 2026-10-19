@@ -32,7 +32,10 @@ final class JobsViewModel: ObservableObject {
         didSet { subscribeToFilters() }
     }
     let chatStore: FeatureChatStore = FeatureChatStore(profile: activeProfile)
+    // Jobs you've applied to — KV-backed, independent of the loaded sheet
+    let applicationsStore: ApplicationsStore = ApplicationsStore(profile: activeProfile)
     private var filtersCancellable: AnyCancellable?
+    private var applicationsCancellable: AnyCancellable?
     private var starsCancellable: AnyCancellable?
     private var loadTask: Task<Void, Never>?
     @Published var sheetsWithStars: Set<String> = []
@@ -91,10 +94,18 @@ final class JobsViewModel: ObservableObject {
         loadJobSheetMap()
         subscribeToFilters()
         subscribeToStars()
+        subscribeToApplications()
     }
 
     private func subscribeToFilters() {
         filtersCancellable = filtersStore.objectWillChange.sink { [weak self] in
+            self?.objectWillChange.send()
+        }
+    }
+
+    // Rows show an "Applied" chip, so the list must re-render when applications change
+    private func subscribeToApplications() {
+        applicationsCancellable = applicationsStore.objectWillChange.sink { [weak self] in
             self?.objectWillChange.send()
         }
     }
