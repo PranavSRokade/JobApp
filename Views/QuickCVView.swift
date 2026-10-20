@@ -44,7 +44,8 @@ struct QuickCVView: View {
                 }
             }
             .sheet(item: $cvResult) { result in
-                CVPreviewView(jd: jdText, jobId: -1, profile: profile, result: result)
+                CVPreviewView(jd: jdText, jobId: -1, profile: profile, result: result,
+                              fileName: resumeFileName(title: result.decisions.role))
             }
         }
     }

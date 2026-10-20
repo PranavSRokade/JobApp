@@ -9,6 +9,7 @@ struct JobDetailView: View {
     var region: String = "uk"
 
     @State private var isGeneratingCV = false
+    @State private var cvStartedAt = Date()
     @State private var cvResult: CVResult? = nil
     @State private var cvError: String? = nil
     @State private var showCVOptions = false
@@ -126,7 +127,12 @@ struct JobDetailView: View {
                                 if isGeneratingCV {
                                     HStack(spacing: 6) {
                                         ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                        Text("Generating…").lineLimit(1)
+                                        // live seconds so a slow fallback provider doesn't look frozen
+                                        TimelineView(.periodic(from: cvStartedAt, by: 1)) { context in
+                                            Text("Generating… \(Int(context.date.timeIntervalSince(cvStartedAt)))s")
+                                                .lineLimit(1)
+                                                .monospacedDigit()
+                                        }
                                     }
                                 } else {
                                     Label("Generate CV", systemImage: "doc.text.fill").lineLimit(1)
@@ -260,7 +266,8 @@ struct JobDetailView: View {
             set: { if !$0 { cvResult = nil } }
         )) {
             if let result = cvResult {
-                CVPreviewView(jd: effectiveJD ?? "", jobId: job.jobId, profile: profile, result: result)
+                CVPreviewView(jd: effectiveJD ?? "", jobId: job.jobId, profile: profile, result: result,
+                              fileName: resumeFileName(title: job.title, company: job.company, location: job.location))
             }
         }
         .sheet(isPresented: $showAnswer) {
@@ -379,6 +386,7 @@ struct JobDetailView: View {
     }
 
     private func generateCV(jd: String) {
+        cvStartedAt = Date()
         isGeneratingCV = true
         cvError = nil
         Task {

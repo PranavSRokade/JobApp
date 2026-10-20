@@ -74,19 +74,35 @@ struct CVService {
         return pdfData
     }
 
+    // The worker caps its own AI + LaTeX work at ~85 s worst case, so a hard 110 s total cap here means a
+    // request can never spin forever — it either returns or fails with a readable message.
+    private static let session: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 100
+        config.timeoutIntervalForResource = 110
+        config.waitsForConnectivity = false
+        return URLSession(configuration: config)
+    }()
+
     private static func post<B: Encodable>(path: String, body: B) async throws -> Data {
         guard let url = URL(string: "\(baseURL)\(path)") else { throw CVServiceError.decodingError }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.timeoutInterval = 90
+        req.timeoutInterval = 100
         req.httpBody = try JSONEncoder().encode(body)
         let (data, response): (Data, URLResponse)
-        do { (data, response) = try await URLSession.shared.data(for: req) }
+        do { (data, response) = try await session.data(for: req) }
+        catch let error as URLError where error.code == .timedOut {
+            throw CVServiceError.server(408, "This took too long — the AI providers are busy. Try again in a minute.")
+        }
         catch { throw CVServiceError.networkError(error) }
         guard let http = response as? HTTPURLResponse else { throw CVServiceError.decodingError }
         guard http.statusCode == 200 else {
-            throw CVServiceError.server(http.statusCode, String(data: data, encoding: .utf8) ?? "")
+            // Show the worker's message ("AI providers are busy…") rather than raw JSON
+            let raw = String(data: data, encoding: .utf8) ?? ""
+            let message = (try? JSONDecoder().decode([String: String].self, from: data))?["error"] ?? raw
+            throw CVServiceError.server(http.statusCode, message)
         }
         return data
     }

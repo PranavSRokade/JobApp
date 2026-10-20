@@ -1,11 +1,39 @@
 import SwiftUI
 import PDFKit
 
+/// "Resume_<Role title>_<Company name>_<City>.pdf" — parts that are unknown are left out,
+/// e.g. Quick CV (pasted JD) gives "Resume_React Native Engineer.pdf".
+func resumeFileName(title: String, company: String? = nil, location: String? = nil) -> String {
+    func clean(_ s: String) -> String {
+        s.replacingOccurrences(of: #"\([^)]*\)|\[[^\]]*\]"#, with: "", options: .regularExpression) // "(100% Remote)"
+            .replacingOccurrences(of: #"[/\\:*?"<>|_]+"#, with: " ", options: .regularExpression)    // illegal in file names (and our separator)
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: " -,."))
+    }
+    let parts = ["Resume", clean(title), clean(company ?? ""), clean(city(from: location ?? ""))]
+        .filter { !$0.isEmpty }
+        .map { String($0.prefix(60)) }
+    return parts.joined(separator: "_") + ".pdf"
+}
+
+/// "London, England, United Kingdom" → "London", "Greater Seattle Area" → "Seattle",
+/// "Austin, Texas Metropolitan Area" → "Austin", "United States" → "United States"
+func city(from location: String) -> String {
+    var first = location.components(separatedBy: ",").first?.trimmingCharacters(in: .whitespaces) ?? ""
+    if first.hasPrefix("Greater ") { first.removeFirst("Greater ".count) }
+    for suffix in [" Metropolitan Area", " Metro Area", " Bay Area", " Area", " Region"] where first.hasSuffix(suffix) {
+        first.removeLast(suffix.count)
+        break
+    }
+    return first.trimmingCharacters(in: .whitespaces)
+}
+
 struct CVPreviewView: View {
     let jd: String
     let jobId: Int
     let profile: String
     @State var result: CVResult
+    var fileName: String = "Resume.pdf"
 
     @State private var showShareOptions = false
     @State private var shareItems: [Any]? = nil
@@ -47,8 +75,9 @@ struct CVPreviewView: View {
                 }
                 .confirmationDialog("Share as", isPresented: $showShareOptions, titleVisibility: .visible) {
                     Button("Share PDF") {
-                        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("CV.pdf")
-                        try? result.pdfData.write(to: tempURL)
+                        // The share sheet / "Save to Files" uses the file's name, so name it properly
+                        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+                        try? result.pdfData.write(to: tempURL, options: .atomic)
                         shareItems = [tempURL]
                     }
                     Button("Share Overleaf Link") {
