@@ -70,24 +70,27 @@ struct JobDetailView: View {
                 // Application tracking — mark as applied, change stage, see how long ago
                 applicationCard
 
-                Divider()
+                // Feed jobs are pure scrapes with no AI scores — hide the empty grid
+                if job.hasScores {
+                    Divider()
 
-                // Scores grid
-                Text("Scores")
-                    .font(.headline)
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                    ScoreCard(label: "Skills", value: job.skills)
-                    ScoreCard(label: "Experience", value: job.experience)
-                    ScoreCard(label: "Seniority", value: job.seniority)
-                    ScoreCard(label: "Location Fit", value: job.locationFit)
-                    ScoreCard(label: "Company Size", value: job.companySize)
-                    ScoreCard(label: "Overall", value: job.averageScore)
-                }
+                    // Scores grid
+                    Text("Scores")
+                        .font(.headline)
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                        ScoreCard(label: "Skills", value: job.skills)
+                        ScoreCard(label: "Experience", value: job.experience)
+                        ScoreCard(label: "Seniority", value: job.seniority)
+                        ScoreCard(label: "Location Fit", value: job.locationFit)
+                        ScoreCard(label: "Company Size", value: job.companySize)
+                        ScoreCard(label: "Overall", value: job.averageScore)
+                    }
 
-                if job.scoreSource == "full-jd" {
-                    Label("Scored from full JD", systemImage: "checkmark.seal.fill")
-                        .font(.caption)
-                        .foregroundColor(.blue)
+                    if job.scoreSource == "full-jd" {
+                        Label("Scored from full JD", systemImage: "checkmark.seal.fill")
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                    }
                 }
 
                 Divider()

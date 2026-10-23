@@ -10,6 +10,7 @@ struct JobsListView: View {
     @State private var showBulletSuggester = false
     @State private var showFeatureChats = false
     @State private var showApplications = false
+    @State private var showFeed = false
 
     var body: some View {
         NavigationStack {
@@ -74,6 +75,9 @@ struct JobsListView: View {
                             Label(vm.applicationsStore.applications.isEmpty ? "Applications" : "Applications (\(vm.applicationsStore.applications.count))",
                                   systemImage: "paperplane")
                         }
+                        Button { showFeed = true } label: {
+                            Label("Live Feed", systemImage: "dot.radiowaves.left.and.right")
+                        }
                         Divider()
                         Button { showFeatureChats = true } label: {
                             Label("Feature Chats", systemImage: "text.bubble")
@@ -114,6 +118,10 @@ struct JobsListView: View {
         }
         .sheet(isPresented: $showApplications) {
             ApplicationsView(store: vm.applicationsStore, starredStore: vm.starredStore, profile: vm.selectedProfile)
+        }
+        .sheet(isPresented: $showFeed) {
+            FeedView(starredStore: vm.starredStore, applicationsStore: vm.applicationsStore,
+                     profile: vm.selectedProfile, region: vm.region)
         }
         .sheet(isPresented: $showFeatureChats) {
             FeatureChatsListView(store: vm.chatStore, profile: vm.selectedProfile)

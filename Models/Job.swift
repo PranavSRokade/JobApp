@@ -29,6 +29,9 @@ struct Job: Codable, Identifiable {
 
     var applicantsText: String? { (applicants ?? "").isEmpty ? nil : applicants }
 
+    // Feed jobs are pure scrapes — all scores zero — so views can hide the scores UI
+    var hasScores: Bool { rank > 0 || skills > 0 || experience > 0 || seniority > 0 || locationFit > 0 }
+
     var sponsored: Bool { sponsorship == "yes" }
     var noSponsorship: Bool { sponsorship == "no" }
     var salaryText: String? { (salary ?? "").isEmpty ? nil : salary }
