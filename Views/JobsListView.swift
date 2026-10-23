@@ -45,17 +45,10 @@ struct JobsListView: View {
                     .searchable(text: $vm.searchText, prompt: "Search jobs…")
                 }
             }
-            // Fixed bar at the bottom edge: the list is inset above it, so nothing scrolls underneath
-            // (iOS 26's floating .bottomBar toolbar let rows slide under the control).
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                VStack(spacing: 0) {
-                    Divider()
-                    regionPicker
-                        .padding(.horizontal)
-                        .padding(.vertical, 8)
-                        .frame(maxWidth: .infinity)
-                        .background(.bar)
-                }
+            // Floating glass capsule above the tab bar; the list is inset so rows never hide under it
+            .safeAreaInset(edge: .bottom, spacing: 8) {
+                RegionSwitch(region: $vm.region)
+                    .padding(.bottom, 2)
             }
             .navigationTitle(vm.showStarredOnly ? "\(vm.filteredJobs.count) Starred" : "\(vm.filteredJobs.count) Jobs")
             .toolbar {
@@ -130,15 +123,6 @@ struct JobsListView: View {
         }
     }
 
-    private var regionPicker: some View {
-        Picker("Region", selection: $vm.region) {
-            Text("UK").tag("uk")
-            Text("USA").tag("us")
-        }
-        .pickerStyle(.segmented)
-        .frame(maxWidth: 260)
-    }
-
     private var sheetPicker: some View {
         Menu {
             ForEach(vm.availableSheets, id: \.self) { sheet in
@@ -173,6 +157,46 @@ struct JobsListView: View {
     }
 
 
+}
+
+// MARK: - Region switch (shared with FeedView)
+
+/// Capsule market switch with a sliding pill — replaces the stock segmented control.
+struct RegionSwitch: View {
+    @Binding var region: String
+    @Namespace private var ns
+
+    private let options: [(tag: String, label: String)] = [("uk", "UK"), ("us", "USA")]
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(options, id: \.tag) { opt in
+                Button {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        region = opt.tag
+                    }
+                } label: {
+                    Text(opt.label)
+                        .font(.system(size: 13, weight: region == opt.tag ? .bold : .medium, design: .rounded))
+                        .foregroundColor(region == opt.tag ? .white : .secondary)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 8)
+                        .background {
+                            if region == opt.tag {
+                                Capsule()
+                                    .fill(Color.indigo)
+                                    .matchedGeometryEffect(id: "pill", in: ns)
+                            }
+                        }
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(3)
+        .glassEffect(.regular.interactive(), in: Capsule())
+        .sensoryFeedback(.selection, trigger: region)
+    }
 }
 
 // "03-42AM_18-Jun-26" or "US_03-42AM_18-Jun-26" → "18 Jun · 3:42 AM"

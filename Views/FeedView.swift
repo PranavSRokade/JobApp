@@ -113,14 +113,9 @@ struct FeedView: View {
     }
 
     private var header: some View {
-        VStack(spacing: 4) {
-            Picker("Region", selection: $region) {
-                Text("UK").tag("uk")
-                Text("USA").tag("us")
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal)
-            .padding(.top, 8)
+        VStack(spacing: 6) {
+            RegionSwitch(region: $region)
+                .padding(.top, 8)
             HStack {
                 if !newIds.isEmpty {
                     Text("\(newIds.count) new since last refresh")
