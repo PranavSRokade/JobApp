@@ -12,43 +12,15 @@ struct JobsListView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if vm.isLoading && vm.jobs.isEmpty {
-                    ProgressView("Loading jobs…")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if let error = vm.errorMessage {
-                    ContentUnavailableView(
-                        "Failed to load",
-                        systemImage: "wifi.exclamationmark",
-                        description: Text(error)
-                    )
-                } else if vm.showStarredOnly && vm.filteredJobs.isEmpty {
-                    ContentUnavailableView(
-                        "No starred jobs",
-                        systemImage: "star",
-                        description: Text("Swipe right on a job to star it")
-                    )
-                } else if !vm.isLoading && vm.jobs.isEmpty {
-                    ContentUnavailableView(
-                        "No jobs yet",
-                        systemImage: "tray",
-                        description: Text("Nothing has been scraped for \(vm.region == "us" ? "the USA" : "the UK") yet")
-                    )
-                } else {
-                    List(vm.filteredJobs) { job in
-                        NavigationLink(destination: JobDetailView(job: job, sheetName: vm.sheetName, starredStore: vm.starredStore, applicationsStore: vm.applicationsStore, profile: vm.selectedProfile, region: vm.region)) {
-                            JobRowView(job: job, sheetName: vm.sheetName, starredStore: vm.starredStore, isApplied: vm.applicationsStore.isApplied(job.jobId))
-                        }
-                    }
-                    .listStyle(.plain)
-                    .refreshable { await vm.load() }
-                    .searchable(text: $vm.searchText, prompt: "Search jobs…")
-                }
+            // UK and USA are real, independent pages: swipe between them (or tap the tabs)
+            // and each keeps its own data and scroll position — no reload flash.
+            TabView(selection: $vm.region) {
+                regionPage(vm.uk).tag("uk")
+                regionPage(vm.us).tag("us")
             }
-            // Floating glass capsule above the tab bar; the list is inset so rows never hide under it
-            .safeAreaInset(edge: .bottom, spacing: 8) {
-                RegionSwitch(region: $vm.region)
-                    .padding(.bottom, 2)
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .safeAreaInset(edge: .top, spacing: 0) {
+                MarketTabs(region: $vm.region)
             }
             .navigationTitle(vm.showStarredOnly ? "\(vm.filteredJobs.count) Starred" : "\(vm.filteredJobs.count) Jobs")
             .toolbar {
@@ -87,7 +59,7 @@ struct JobsListView: View {
                 }
             }
         }
-        .task { await vm.load() }
+        .task { await vm.loadAll() }
         .sheet(isPresented: $showManageSheets) {
             ManageSheetsView(vm: vm)
         }
@@ -120,6 +92,44 @@ struct JobsListView: View {
                 sheetToDelete = nil
             }
             Button("Cancel", role: .cancel) { sheetToDelete = nil }
+        }
+    }
+
+    @ViewBuilder
+    private func regionPage(_ model: RegionJobsModel) -> some View {
+        let filtered = vm.filteredJobs(in: model)
+        Group {
+            if model.isLoading && model.jobs.isEmpty {
+                ProgressView("Loading jobs…")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let error = model.errorMessage {
+                ContentUnavailableView(
+                    "Failed to load",
+                    systemImage: "wifi.exclamationmark",
+                    description: Text(error)
+                )
+            } else if vm.showStarredOnly && filtered.isEmpty {
+                ContentUnavailableView(
+                    "No starred jobs",
+                    systemImage: "star",
+                    description: Text("Swipe right on a job to star it")
+                )
+            } else if !model.isLoading && model.jobs.isEmpty {
+                ContentUnavailableView(
+                    "No jobs yet",
+                    systemImage: "tray",
+                    description: Text("Nothing has been scraped for \(model.region == "us" ? "the USA" : "the UK") yet")
+                )
+            } else {
+                List(filtered) { job in
+                    NavigationLink(destination: JobDetailView(job: job, sheetName: model.sheetName, starredStore: vm.starredStore, applicationsStore: vm.applicationsStore, profile: vm.selectedProfile, region: model.region)) {
+                        JobRowView(job: job, sheetName: model.sheetName, starredStore: vm.starredStore, isApplied: vm.applicationsStore.isApplied(job.jobId))
+                    }
+                }
+                .listStyle(.plain)
+                .refreshable { await model.load() }
+                .searchable(text: $vm.searchText, prompt: "Search jobs…")
+            }
         }
     }
 
@@ -159,42 +169,48 @@ struct JobsListView: View {
 
 }
 
-// MARK: - Region switch (shared with FeedView)
+// MARK: - Market tabs (shared with FeedView)
 
-/// Capsule market switch with a sliding pill — replaces the stock segmented control.
-struct RegionSwitch: View {
+/// Underline tabs in the X / Instagram style: full-width labels with a sliding ink bar.
+/// The pager swipe and the tab taps both drive the same `region` binding.
+struct MarketTabs: View {
     @Binding var region: String
     @Namespace private var ns
 
     private let options: [(tag: String, label: String)] = [("uk", "UK"), ("us", "USA")]
 
     var body: some View {
-        HStack(spacing: 2) {
-            ForEach(options, id: \.tag) { opt in
-                Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                ForEach(options, id: \.tag) { opt in
+                    Button {
                         region = opt.tag
-                    }
-                } label: {
-                    Text(opt.label)
-                        .font(.system(size: 13, weight: region == opt.tag ? .bold : .medium, design: .rounded))
-                        .foregroundColor(region == opt.tag ? .white : .secondary)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 8)
-                        .background {
-                            if region == opt.tag {
-                                Capsule()
-                                    .fill(Color.indigo)
-                                    .matchedGeometryEffect(id: "pill", in: ns)
+                    } label: {
+                        VStack(spacing: 8) {
+                            Text(opt.label)
+                                .font(.system(size: 15, weight: region == opt.tag ? .semibold : .regular))
+                                .foregroundColor(region == opt.tag ? .primary : .secondary)
+                            ZStack {
+                                Color.clear.frame(height: 3)
+                                if region == opt.tag {
+                                    Capsule()
+                                        .fill(Color.primary)
+                                        .frame(width: 52, height: 3)
+                                        .matchedGeometryEffect(id: "ink", in: ns)
+                                }
                             }
                         }
-                        .contentShape(Capsule())
+                        .padding(.top, 8)
+                        .frame(maxWidth: .infinity)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
+            Divider()
         }
-        .padding(3)
-        .glassEffect(.regular.interactive(), in: Capsule())
+        .background(.bar)
+        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: region)
         .sensoryFeedback(.selection, trigger: region)
     }
 }

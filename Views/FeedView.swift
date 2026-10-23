@@ -41,11 +41,39 @@ private enum FeedSeenStore {
     }
 }
 
+/// UK and USA feeds as swipeable pages under the same underline tabs as the Jobs tab.
 struct FeedView: View {
     @ObservedObject var starredStore: StarredJobsStore
     @ObservedObject var applicationsStore: ApplicationsStore
     let profile: String
     @State var region: String
+
+    var body: some View {
+        NavigationStack {
+            TabView(selection: $region) {
+                FeedPage(starredStore: starredStore, applicationsStore: applicationsStore,
+                         profile: profile, region: "uk")
+                    .tag("uk")
+                FeedPage(starredStore: starredStore, applicationsStore: applicationsStore,
+                         profile: profile, region: "us")
+                    .tag("us")
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .safeAreaInset(edge: .top, spacing: 0) {
+                MarketTabs(region: $region)
+            }
+            .navigationTitle("Live Feed")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+}
+
+/// One market's feed: own data, own scroll position, loads the first time it appears.
+private struct FeedPage: View {
+    @ObservedObject var starredStore: StarredJobsStore
+    @ObservedObject var applicationsStore: ApplicationsStore
+    let profile: String
+    let region: String
 
     @State private var jobs: [Job] = []
     @State private var newIds: Set<Int> = []
@@ -57,85 +85,60 @@ struct FeedView: View {
     @State private var loadedOnce = false
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if isLoading && jobs.isEmpty {
-                    ProgressView("Scraping LinkedIn…")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if let error, jobs.isEmpty {
-                    ContentUnavailableView("Feed unavailable", systemImage: "wifi.exclamationmark", description: Text(error))
-                } else if jobs.isEmpty {
-                    ContentUnavailableView("Nothing fresh", systemImage: "antenna.radiowaves.left.and.right",
-                                           description: Text("Pull to refresh"))
-                } else {
-                    List(jobs) { job in
-                        NavigationLink {
-                            JobDetailView(job: job, sheetName: nil, starredStore: starredStore,
-                                          applicationsStore: applicationsStore, profile: profile, region: region)
-                        } label: {
-                            FeedRow(job: job,
-                                    isNew: newIds.contains(job.jobId),
-                                    isApplied: applicationsStore.isApplied(job.jobId))
+        Group {
+            if isLoading && jobs.isEmpty {
+                ProgressView("Scraping LinkedIn…")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let error, jobs.isEmpty {
+                ContentUnavailableView("Feed unavailable", systemImage: "wifi.exclamationmark", description: Text(error))
+            } else if jobs.isEmpty {
+                ContentUnavailableView("Nothing fresh", systemImage: "antenna.radiowaves.left.and.right",
+                                       description: Text("Pull to refresh"))
+            } else {
+                List {
+                    Section {
+                        ForEach(jobs) { job in
+                            NavigationLink {
+                                JobDetailView(job: job, sheetName: nil, starredStore: starredStore,
+                                              applicationsStore: applicationsStore, profile: profile, region: region)
+                            } label: {
+                                FeedRow(job: job,
+                                        isNew: newIds.contains(job.jobId),
+                                        isApplied: applicationsStore.isApplied(job.jobId))
+                            }
                         }
-                    }
-                    .listStyle(.plain)
-                }
-            }
-            .safeAreaInset(edge: .top, spacing: 0) { header }
-            .navigationTitle(jobs.isEmpty ? "Live Feed" : "\(jobs.count) Fresh Jobs")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    if isLoading {
-                        ProgressView()
-                    } else {
-                        Button {
-                            Task { await refresh() }
-                        } label: {
-                            Image(systemName: "arrow.clockwise")
-                        }
+                    } header: {
+                        metaRow
                     }
                 }
+                .listStyle(.plain)
             }
-            .refreshable { await refresh() }
-            .task {
-                guard !loadedOnce else { return }
-                loadedOnce = true
-                seen = FeedSeenStore.load(profile: profile)
-                await refresh()
-            }
-            .onChange(of: region) { _ in
-                jobs = []
-                newIds = []
-                Task { await refresh() }
-            }
+        }
+        .refreshable { await refresh() }
+        .task {
+            guard !loadedOnce else { return }
+            loadedOnce = true
+            seen = FeedSeenStore.load(profile: profile)
+            await refresh()
         }
     }
 
-    private var header: some View {
-        VStack(spacing: 6) {
-            RegionSwitch(region: $region)
-                .padding(.top, 8)
-            HStack {
-                if !newIds.isEmpty {
-                    Text("\(newIds.count) new since last refresh")
-                        .font(.caption2)
-                        .foregroundColor(.green)
-                }
-                Spacer()
-                if failures > 0 {
-                    Text("\(failures)/\(searches) searches rate-limited")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
+    private var metaRow: some View {
+        HStack(spacing: 6) {
+            Text("\(jobs.count) fresh")
+                .foregroundColor(.primary)
+            if !newIds.isEmpty {
+                Text("· \(newIds.count) new")
+                    .foregroundColor(.green)
             }
-            .padding(.horizontal)
-            if let error, !jobs.isEmpty {
-                Text(error).font(.caption2).foregroundColor(.red).padding(.horizontal)
+            Spacer()
+            if failures > 0 {
+                Text("\(failures)/\(searches) rate-limited")
+                    .foregroundColor(.secondary)
             }
-            Divider().padding(.top, 4)
         }
-        .background(.bar)
+        .font(.caption)
+        .textCase(nil)
     }
 
     private func refresh() async {
