@@ -46,7 +46,6 @@ struct FeedView: View {
     @ObservedObject var applicationsStore: ApplicationsStore
     let profile: String
     @State var region: String
-    @Environment(\.dismiss) private var dismiss
 
     @State private var jobs: [Job] = []
     @State private var newIds: Set<Int> = []
@@ -86,9 +85,6 @@ struct FeedView: View {
             .navigationTitle(jobs.isEmpty ? "Live Feed" : "\(jobs.count) Fresh Jobs")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Done") { dismiss() }
-                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if isLoading {
                         ProgressView()

@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct JobsListView: View {
-    @StateObject private var vm = JobsViewModel()
+    @ObservedObject var vm: JobsViewModel
     @State private var sheetToDelete: String? = nil
     @State private var showManageSheets = false
     @State private var showProfileEditor = false
@@ -9,8 +9,6 @@ struct JobsListView: View {
     @State private var showQuickCV = false
     @State private var showBulletSuggester = false
     @State private var showFeatureChats = false
-    @State private var showApplications = false
-    @State private var showFeed = false
 
     var body: some View {
         NavigationStack {
@@ -71,13 +69,6 @@ struct JobsListView: View {
                             Label(vm.filtersStore.filters.isDefault ? "Filters" : "Filters (active)",
                                   systemImage: vm.filtersStore.filters.isDefault ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
                         }
-                        Button { showApplications = true } label: {
-                            Label(vm.applicationsStore.applications.isEmpty ? "Applications" : "Applications (\(vm.applicationsStore.applications.count))",
-                                  systemImage: "paperplane")
-                        }
-                        Button { showFeed = true } label: {
-                            Label("Live Feed", systemImage: "dot.radiowaves.left.and.right")
-                        }
                         Divider()
                         Button { showFeatureChats = true } label: {
                             Label("Feature Chats", systemImage: "text.bubble")
@@ -115,13 +106,6 @@ struct JobsListView: View {
         }
         .sheet(isPresented: $showQuickCV) {
             QuickCVView(profile: vm.selectedProfile)
-        }
-        .sheet(isPresented: $showApplications) {
-            ApplicationsView(store: vm.applicationsStore, starredStore: vm.starredStore, profile: vm.selectedProfile)
-        }
-        .sheet(isPresented: $showFeed) {
-            FeedView(starredStore: vm.starredStore, applicationsStore: vm.applicationsStore,
-                     profile: vm.selectedProfile, region: vm.region)
         }
         .sheet(isPresented: $showFeatureChats) {
             FeatureChatsListView(store: vm.chatStore, profile: vm.selectedProfile)

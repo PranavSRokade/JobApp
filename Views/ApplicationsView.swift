@@ -6,7 +6,6 @@ struct ApplicationsView: View {
     @ObservedObject var store: ApplicationsStore
     @ObservedObject var starredStore: StarredJobsStore
     let profile: String
-    @Environment(\.dismiss) private var dismiss
     @State private var showStages = false
 
     private var grouped: [(stage: ApplicationStage, apps: [Application])] {
@@ -62,9 +61,6 @@ struct ApplicationsView: View {
             .navigationTitle("\(store.applications.count) Applications")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Done") { dismiss() }
-                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button { showStages = true } label: {
                         Label("Stages", systemImage: "list.bullet.indent")
