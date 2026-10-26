@@ -24,6 +24,8 @@ struct JobDetailView: View {
     // UK sponsor register match (pure name search, no AI) — collapsed chip ↔ expanded stats
     @State private var sponsorMatches: [SponsorMatch] = []
     @State private var showSponsorDetails = false
+    // Recruiter contact emails found in the JD text (plain regex, no AI)
+    @State private var contactEmails: [String] = []
 
     private var isStarred: Bool { starredStore.isStarred(job.jobId) }
     private var effectiveJD: String? { job.jd ?? fetchedJD ?? JDCache.load(for: job.jobId) }
@@ -71,6 +73,19 @@ struct JobDetailView: View {
                     // Independent of the JD-based sponsorship above — both can show
                     if !sponsorMatches.isEmpty {
                         sponsorRegisterBlock
+                    }
+                    // "Reach out to…" emails from the JD — tap to compose
+                    ForEach(contactEmails, id: \.self) { email in
+                        Button {
+                            if let url = URL(string: "mailto:\(email)") {
+                                UIApplication.shared.open(url)
+                            }
+                        } label: {
+                            Label(email, systemImage: "envelope.fill")
+                                .font(.subheadline.weight(.medium))
+                                .foregroundColor(.blue)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
 
@@ -261,7 +276,10 @@ struct JobDetailView: View {
         }
         .navigationTitle(job.company)
         .navigationBarTitleDisplayMode(.inline)
-        .task { loadSponsorMatches() }
+        .task {
+            loadSponsorMatches()
+            contactEmails = Self.extractEmails(from: effectiveJD)
+        }
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
@@ -453,6 +471,30 @@ struct JobDetailView: View {
         }
     }
 
+    /// Contact emails from the JD ("reach out to hr@acme.com if interested…"), minus
+    /// noreply-style and asset-looking addresses. Pure regex — no AI.
+    static func extractEmails(from text: String?) -> [String] {
+        guard let text else { return [] }
+        let pattern = #"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+        let ns = text as NSString
+        let raw = regex.matches(in: text, range: NSRange(location: 0, length: ns.length))
+            .map { ns.substring(with: $0.range) }
+        var seen = Set<String>()
+        var result: [String] = []
+        let junk = ["noreply", "no-reply", "donotreply", "do-not-reply", "example.", "@linkedin.", "@sentry.", "unsubscribe", "privacy@"]
+        for email in raw {
+            let lower = email.lowercased()
+            guard !seen.contains(lower) else { continue }
+            guard !junk.contains(where: { lower.contains($0) }) else { continue }
+            guard !lower.hasSuffix(".png") && !lower.hasSuffix(".jpg") && !lower.hasSuffix(".gif") && !lower.hasSuffix(".webp") else { continue }
+            seen.insert(lower)
+            result.append(email)
+            if result.count == 3 { break }
+        }
+        return result
+    }
+
     private func loadSponsorMatches() {
         Task {
             sponsorMatches = await SponsorRegisterStore.shared.match(company: job.company)
@@ -465,6 +507,7 @@ struct JobDetailView: View {
         Task {
             do {
                 fetchedJD = try await JobsService.fetchJobDescription(url: job.link, profile: profile, sheet: sheetName, jobId: job.jobId)
+                contactEmails = Self.extractEmails(from: effectiveJD)
             } catch {
                 fetchJDError = error.localizedDescription
             }

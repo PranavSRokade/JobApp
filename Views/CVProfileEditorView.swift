@@ -599,16 +599,7 @@ private struct SettingsTab: View {
             } header: {
                 Text("Degree (summary line)")
             } footer: {
-                Text("Short form used in the summary paragraph.")
-            }
-            Section {
-                TextField("e.g. Masters in Advanced Software Engineering $\\vert$ Merit", text: $settings.educationTitle, axis: .vertical)
-                    .font(.system(size: 13, design: .monospaced))
-                    .autocorrectionDisabled()
-            } header: {
-                Text("Education heading")
-            } footer: {
-                Text("Full heading under Education (LaTeX). Shorten it if the CV runs out of space. Leave any field blank to use the built-in default.")
+                Text("Short form used in the summary paragraph. Leave blank for the built-in default. The education heading itself is edited per CV, in Edit CV.")
             }
             Section {
                 Button { showPrompt = true } label: {
