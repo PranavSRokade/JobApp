@@ -21,6 +21,9 @@ struct JobDetailView: View {
     @State private var isFetchingJD = false
     @State private var fetchJDError: String? = nil
     @State private var showAnswer = false
+    // UK sponsor register match (pure name search, no AI) — collapsed chip ↔ expanded stats
+    @State private var sponsorMatches: [SponsorMatch] = []
+    @State private var showSponsorDetails = false
 
     private var isStarred: Bool { starredStore.isStarred(job.jobId) }
     private var effectiveJD: String? { job.jd ?? fetchedJD ?? JDCache.load(for: job.jobId) }
@@ -64,6 +67,10 @@ struct JobDetailView: View {
                         Label(salary, systemImage: "banknote")
                             .font(.subheadline.weight(.semibold))
                             .foregroundColor(.teal)
+                    }
+                    // Independent of the JD-based sponsorship above — both can show
+                    if !sponsorMatches.isEmpty {
+                        sponsorRegisterBlock
                     }
                 }
 
@@ -254,6 +261,7 @@ struct JobDetailView: View {
         }
         .navigationTitle(job.company)
         .navigationBarTitleDisplayMode(.inline)
+        .task { loadSponsorMatches() }
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
@@ -286,6 +294,76 @@ struct JobDetailView: View {
                 CoverLetterPreviewView(pdfData: pdf, jobTitle: job.title)
             }
         }
+    }
+
+    // MARK: - Sponsor register (gov.uk licensed sponsors — pure name match)
+
+    @ViewBuilder
+    private var sponsorRegisterBlock: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) { showSponsorDetails.toggle() }
+        } label: {
+            if showSponsorDetails {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Label("UK licensed sponsor", systemImage: "checkmark.shield.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(.mint)
+                        Spacer()
+                        Image(systemName: "chevron.up")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    ForEach(sponsorMatches) { match in
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 6) {
+                                Text(match.company.name)
+                                    .font(.system(size: 14, weight: .semibold))
+                                if !match.exact {
+                                    Text("close match")
+                                        .font(.system(size: 10, weight: .medium))
+                                        .padding(.horizontal, 5)
+                                        .padding(.vertical, 2)
+                                        .background(Color.orange.opacity(0.15))
+                                        .foregroundColor(.orange)
+                                        .clipShape(Capsule())
+                                }
+                            }
+                            if !match.company.place.isEmpty {
+                                Text(match.company.place)
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.secondary)
+                            }
+                            ForEach(match.company.licences, id: \.self) { licence in
+                                Text(licence)
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    if let date = SponsorRegisterStore.shared.meta?.sheetDate {
+                        Text("Home Office register, sheet \(date)")
+                            .font(.caption2)
+                            .foregroundColor(Color(.tertiaryLabel))
+                    }
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.mint.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+            } else {
+                HStack(spacing: 5) {
+                    Label(sponsorMatches.contains(where: \.exact) ? "Visa — UK licensed sponsor" : "Visa — possible licensed sponsor",
+                          systemImage: "checkmark.shield")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.mint)
+                    Image(systemName: "chevron.down")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Application tracking
@@ -372,6 +450,12 @@ struct JobDetailView: View {
         case let (l?, _): return "\(l) when listed"
         case let (nil, a?): return "\(a) when you applied"
         default: return nil
+        }
+    }
+
+    private func loadSponsorMatches() {
+        Task {
+            sponsorMatches = await SponsorRegisterStore.shared.match(company: job.company)
         }
     }
 

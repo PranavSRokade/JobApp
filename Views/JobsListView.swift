@@ -9,6 +9,7 @@ struct JobsListView: View {
     @State private var showQuickCV = false
     @State private var showBulletSuggester = false
     @State private var showFeatureChats = false
+    @State private var showSponsorRegister = false
 
     var body: some View {
         NavigationStack {
@@ -48,6 +49,9 @@ struct JobsListView: View {
                         Button { showProfileEditor = true } label: {
                             Label("Edit Profile", systemImage: "person.crop.circle")
                         }
+                        Button { showSponsorRegister = true } label: {
+                            Label("Sponsor Register", systemImage: "checkmark.shield")
+                        }
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }
@@ -74,6 +78,9 @@ struct JobsListView: View {
         }
         .sheet(isPresented: $showFeatureChats) {
             FeatureChatsListView(store: vm.chatStore, profile: vm.selectedProfile)
+        }
+        .sheet(isPresented: $showSponsorRegister) {
+            SponsorRegisterView()
         }
         .sheet(isPresented: $showFilters) {
             JobFiltersView(store: vm.filtersStore)
