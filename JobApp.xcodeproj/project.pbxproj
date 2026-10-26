@@ -30,6 +30,7 @@
 		0950206EFEBE5D5000920FFC /* FeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0950206FFEBE5D5000920FFC /* FeedView.swift */; };
 		09502070FEBE5D6000920FFC /* SponsorRegisterStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09502071FEBE5D6000920FFC /* SponsorRegisterStore.swift */; };
 		09502072FEBE5D7000920FFC /* SponsorRegisterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09502073FEBE5D7000920FFC /* SponsorRegisterView.swift */; };
+		09502074FEBE5D8000920FFC /* PipelineStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09502075FEBE5D8000920FFC /* PipelineStatusView.swift */; };
 		09DC9A3E2FE40F7C00ECDB7A /* JobsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09DC9A352FE40F7C00ECDB7A /* JobsService.swift */; };
 		09DC9A3F2FE40F7C00ECDB7A /* ScoreBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09DC9A3C2FE40F7C00ECDB7A /* ScoreBadgeView.swift */; };
 		09DC9A402FE40F7C00ECDB7A /* Job.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09DC9A332FE40F7C00ECDB7A /* Job.swift */; };
@@ -65,6 +66,7 @@
 		0950206FFEBE5D5000920FFC /* FeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedView.swift; sourceTree = "<group>"; };
 		09502071FEBE5D6000920FFC /* SponsorRegisterStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SponsorRegisterStore.swift; sourceTree = "<group>"; };
 		09502073FEBE5D7000920FFC /* SponsorRegisterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SponsorRegisterView.swift; sourceTree = "<group>"; };
+		09502075FEBE5D8000920FFC /* PipelineStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineStatusView.swift; sourceTree = "<group>"; };
 		09DC9A232FE40F5A00ECDB7A /* JobApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JobApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		09DC9A312FE40F7C00ECDB7A /* JobTrackerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JobTrackerApp.swift; sourceTree = "<group>"; };
 		09DC9A332FE40F7C00ECDB7A /* Job.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Job.swift; sourceTree = "<group>"; };
@@ -171,6 +173,7 @@
 				0950206DFEBE5D4000920FFC /* ApplicationsView.swift */,
 				0950206FFEBE5D5000920FFC /* FeedView.swift */,
 				09502073FEBE5D7000920FFC /* SponsorRegisterView.swift */,
+				09502075FEBE5D8000920FFC /* PipelineStatusView.swift */,
 				095020522FE6E5E900920FFC /* CVProfileEditorView.swift */,
 				0950204A2FE53F3F00920FFC /* CVEditorView.swift */,
 				095020482FE5315400920FFC /* CVPreviewView.swift */,
@@ -274,6 +277,7 @@
 				0950206EFEBE5D5000920FFC /* FeedView.swift in Sources */,
 				09502070FEBE5D6000920FFC /* SponsorRegisterStore.swift in Sources */,
 				09502072FEBE5D7000920FFC /* SponsorRegisterView.swift in Sources */,
+				09502074FEBE5D8000920FFC /* PipelineStatusView.swift in Sources */,
 				0950204F2FE5484500920FFC /* CVCacheStore.swift in Sources */,
 				09DC9A422FE40F7C00ECDB7A /* JobsViewModel.swift in Sources */,
 				095020402FE41CF500920FFC /* AgeUtils.swift in Sources */,

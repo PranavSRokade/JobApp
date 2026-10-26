@@ -10,6 +10,7 @@ struct JobsListView: View {
     @State private var showBulletSuggester = false
     @State private var showFeatureChats = false
     @State private var showSponsorRegister = false
+    @State private var showPipelineStatus = false
 
     var body: some View {
         NavigationStack {
@@ -52,6 +53,9 @@ struct JobsListView: View {
                         Button { showSponsorRegister = true } label: {
                             Label("Sponsor Register", systemImage: "checkmark.shield")
                         }
+                        Button { showPipelineStatus = true } label: {
+                            Label("Scraper Status", systemImage: "gearshape.arrow.triangle.2.circlepath")
+                        }
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }
@@ -81,6 +85,9 @@ struct JobsListView: View {
         }
         .sheet(isPresented: $showSponsorRegister) {
             SponsorRegisterView()
+        }
+        .sheet(isPresented: $showPipelineStatus) {
+            PipelineStatusView()
         }
         .sheet(isPresented: $showFilters) {
             JobFiltersView(store: vm.filtersStore)
