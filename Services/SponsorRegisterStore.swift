@@ -51,8 +51,11 @@ final class SponsorRegisterStore: ObservableObject {
     @Published private(set) var isImporting = false
     @Published var lastCheckResult: String?
 
-    private(set) var data: SponsorRegisterData?
+    // Published so list rows light up their sponsor shields the moment parsing finishes
+    @Published private(set) var data: SponsorRegisterData?
     private var loadTask: Task<Void, Never>?
+    // companyName → exact-hit, so scrolling doesn't re-normalize the same names over and over
+    private var exactCache: [String: Bool] = [:]
 
     private static let registerPage = "https://www.gov.uk/government/publications/register-of-licensed-sponsors-workers"
     private static let autoCheckInterval: TimeInterval = 3 * 24 * 3600 // gov.uk republishes every few weeks
@@ -74,6 +77,17 @@ final class SponsorRegisterStore: ObservableObject {
     }
 
     // MARK: Lookup
+
+    /// Synchronous exact-hit check for list rows: O(1) dictionary lookup, cached per name.
+    /// Close matches are deliberately excluded here — they only show in the detail view.
+    func hasSponsor(company: String) -> Bool {
+        guard let data else { return false }
+        if let cached = exactCache[company] { return cached }
+        let key = Self.stripped(Self.normalize(company))
+        let hit = key.count >= 3 && data.index[key] != nil
+        exactCache[company] = hit
+        return hit
+    }
 
     /// Matches a job's employer name against the register. Exact = normalized-name hit
     /// (legal suffixes and "T/A …" aliases handled); otherwise close word-prefix matches.
@@ -97,6 +111,7 @@ final class SponsorRegisterStore: ObservableObject {
             return
         }
         data = parsed
+        exactCache = [:]
         meta = SponsorRegisterMeta(sheetDate: sheetDate, importedAt: Date(), count: parsed.companies.count, source: source, lastCheckedAt: meta?.lastCheckedAt)
         lastCheckResult = "Imported \(parsed.companies.count.formatted()) companies (sheet \(sheetDate))"
         persist(csv: csv)
@@ -183,6 +198,7 @@ final class SponsorRegisterStore: ObservableObject {
         isLoading = true
         let parsed = await Task.detached(priority: .userInitiated) { Self.parse(csv) }.value
         data = parsed
+        exactCache = [:]
         meta = storedMeta
         isLoading = false
     }

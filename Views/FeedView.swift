@@ -165,6 +165,7 @@ private struct FeedRow: View {
     let job: Job
     let isNew: Bool
     let isApplied: Bool
+    @ObservedObject private var sponsorStore = SponsorRegisterStore.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -195,6 +196,13 @@ private struct FeedRow: View {
                         .background(Color.blue.opacity(0.15))
                         .foregroundColor(.blue)
                         .clipShape(Capsule())
+                }
+                // Employer is on the UK licensed sponsor register (exact match only)
+                if sponsorStore.hasSponsor(company: job.company) {
+                    Image(systemName: "checkmark.shield.fill")
+                        .font(.system(size: 11))
+                        .foregroundColor(.mint)
+                        .accessibilityLabel("UK licensed sponsor")
                 }
             }
             Text(job.location)

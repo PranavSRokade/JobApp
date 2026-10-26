@@ -5,6 +5,7 @@ struct JobRowView: View {
     let sheetName: String?
     @ObservedObject var starredStore: StarredJobsStore
     var isApplied: Bool = false
+    @ObservedObject private var sponsorStore = SponsorRegisterStore.shared
 
     private var isStarred: Bool { starredStore.isStarred(job.jobId) }
 
@@ -71,6 +72,13 @@ struct JobRowView: View {
                             .background(Color.blue.opacity(0.15))
                             .foregroundColor(.blue)
                             .clipShape(Capsule())
+                    }
+                    // Employer is on the UK licensed sponsor register (exact match only)
+                    if sponsorStore.hasSponsor(company: job.company) {
+                        Image(systemName: "checkmark.shield.fill")
+                            .font(.system(size: 11))
+                            .foregroundColor(.mint)
+                            .accessibilityLabel("UK licensed sponsor")
                     }
                 }
 
