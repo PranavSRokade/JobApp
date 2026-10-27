@@ -116,6 +116,7 @@ struct CVPreviewView: View {
                     CVEditorView(
                         decisions: result.decisions,
                         pools: result.pools,
+                        latex: result.latex,
                         jd: jd,
                         jobId: jobId,
                         profile: profile

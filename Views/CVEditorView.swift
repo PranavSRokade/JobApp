@@ -3,6 +3,8 @@ import SwiftUI
 struct CVEditorView: View {
     @State var decisions: CVDecisions
     let pools: CVBulletPools
+    /// Current LaTeX of the CV being edited; the job titles are read from its headings
+    let latex: String
     let jd: String
     let jobId: Int
     let profile: String
@@ -18,6 +20,9 @@ struct CVEditorView: View {
     // Per-CV degree phrase in the summary — shorten it here so the summary fits on one page
     @State private var summaryDegree: String = ""
     @State private var defaultSummaryDegree: String = ""
+    // Per-CV job titles, one per work-experience heading in the LaTeX. Sent on every rebuild so an
+    // earlier edit survives later bullet or skills changes.
+    @State private var jobTitles: [JobTitleEdit] = []
     @Environment(\.dismiss) private var dismiss
 
     private var activePools: CVBulletPools { livePools ?? pools }
@@ -28,6 +33,7 @@ struct CVEditorView: View {
                 summarySection
                 skillsSection
                 projectSection
+                if !jobTitles.isEmpty { jobTitlesSection }
                 ForEach(CVCompany.cases(for: profile), id: \.self) { companySection($0) }
             }
             .listStyle(.insetGrouped)
@@ -55,6 +61,7 @@ struct CVEditorView: View {
                     .presentationBackgroundInteraction(.enabled(upThrough: .medium))
             }
             .safeAreaInset(edge: .bottom) { rebuildBar }
+            .onAppear { if jobTitles.isEmpty { jobTitles = JobTitleEdit.parse(latex: latex) } }
             .task { await refreshPools() }
             .sheet(item: $swapTarget) { target in
                 BulletPickerView(target: target, decisions: $decisions, pools: activePools)
@@ -193,6 +200,25 @@ struct CVEditorView: View {
         }
     }
 
+    // MARK: - Job titles section
+
+    private var jobTitlesSection: some View {
+        Section {
+            ForEach($jobTitles) { $item in
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(item.company).font(.caption).foregroundColor(.secondary)
+                    TextField(item.original, text: $item.title)
+                        .font(.system(size: 14))
+                        .autocorrectionDisabled()
+                }
+            }
+        } header: {
+            Text("Job Titles")
+        } footer: {
+            Text("Applies to this CV only. Edit the template in CV Profile to change a title for every CV.")
+        }
+    }
+
     // MARK: - Work experience section builder
 
     @ViewBuilder
@@ -281,9 +307,13 @@ struct CVEditorView: View {
         rebuildError = nil
         do {
             let override = summaryDegree.trimmingCharacters(in: .whitespaces)
+            let titleOverrides = jobTitles
+                .map { JobTitleOverride(company: $0.company, title: $0.title.trimmingCharacters(in: .whitespaces)) }
+                .filter { !$0.title.isEmpty }
             let (latex, pdfData) = try await CVService.rebuild(
                 decisions: decisions, jd: jd, profile: profile,
-                summaryDegree: override.isEmpty || override == defaultSummaryDegree ? nil : override
+                summaryDegree: override.isEmpty || override == defaultSummaryDegree ? nil : override,
+                jobTitles: titleOverrides.isEmpty ? nil : titleOverrides
             )
             let updated = CVResult(latex: latex, pdfData: pdfData, decisions: decisions, pools: pools)
             CVCacheStore.save(updated, for: jobId)
@@ -293,6 +323,34 @@ struct CVEditorView: View {
             rebuildError = error.localizedDescription
         }
         isRebuilding = false
+    }
+}
+
+// MARK: - Job title edit
+
+/// A work-experience heading parsed from the CV's LaTeX. The company anchors the override on the
+/// worker; the title is what the user edits.
+struct JobTitleEdit: Identifiable {
+    let id: Int
+    let company: String
+    let original: String
+    var title: String
+
+    /// Every \resumeSubheading{company}{location}{title}{dates} block in the document, in order.
+    /// Education and project headings use longer macro names and are skipped by the lookahead.
+    static func parse(latex: String) -> [JobTitleEdit] {
+        let pattern = #/\\resumeSubheading(?![A-Za-z])\s*\{([^{}]*)\}\s*\{[^{}]*\}\s*\{([^{}]*)\}\s*\{[^{}]*\}/#
+        return latex.matches(of: pattern).enumerated().map { i, match in
+            let company = unescape(String(match.1))
+            let title = unescape(String(match.2))
+            return JobTitleEdit(id: i, company: company, original: title, title: title)
+        }
+    }
+
+    /// "Kith \& Kids" → "Kith & Kids"; the worker re-escapes whatever goes back
+    private static func unescape(_ s: String) -> String {
+        s.replacingOccurrences(of: #"\\([&%#_$])"#, with: "$1", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
@@ -341,14 +399,43 @@ struct SkillsPickerView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var localSelected: [String] = []
+    @State private var newSkill: String = ""
 
     private var available: [String] {
         allSkills.filter { !localSelected.contains($0) }
     }
 
+    /// Adds a tag that is not in the pool (e.g. "Amplitude" for one bullet). A case-insensitive match
+    /// against the pool or the current selection reuses the existing spelling instead of duplicating it.
+    private func addNewSkill() {
+        let typed = newSkill.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !typed.isEmpty else { return }
+        let existing = (localSelected + allSkills).first { $0.caseInsensitiveCompare(typed) == .orderedSame }
+        let skill = existing ?? typed
+        if !localSelected.contains(skill) { localSelected.append(skill) }
+        newSkill = ""
+    }
+
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    HStack(spacing: 10) {
+                        Image(systemName: "plus.circle.fill")
+                            .foregroundColor(.indigo)
+                        TextField("Add a skill not in the list…", text: $newSkill)
+                            .font(.system(size: 14))
+                            .autocorrectionDisabled()
+                            .submitLabel(.done)
+                            .onSubmit { addNewSkill() }
+                        if !newSkill.trimmingCharacters(in: .whitespaces).isEmpty {
+                            Button("Add") { addNewSkill() }
+                                .buttonStyle(.borderless)
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.indigo)
+                        }
+                    }
+                }
                 if !localSelected.isEmpty {
                     Section {
                         ForEach(localSelected, id: \.self) { skill in

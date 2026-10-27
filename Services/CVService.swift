@@ -35,6 +35,12 @@ private struct CoverLetterRenderResponse: Decodable {
     let pdf: String
 }
 
+/// One work-experience title to swap into the rebuilt CV, matched to the template's heading by company name.
+struct JobTitleOverride: Codable {
+    let company: String
+    let title: String
+}
+
 /// A generated cover letter: the plain text the model wrote plus the PDF rendered from it.
 /// Keeping the text lets the preview edit it and re-render without another AI call.
 struct CoverLetterResult: Codable {
@@ -55,9 +61,9 @@ struct CVService {
         return CVResult(latex: decoded.latex, pdfData: pdfData, decisions: decoded.decisions, pools: decoded.pools)
     }
 
-    static func rebuild(decisions: CVDecisions, jd: String, profile: String = "spencer", summaryDegree: String? = nil) async throws -> (latex: String, pdfData: Data) {
-        struct Body: Encodable { let decisions: CVDecisions; let jd: String; let profile: String; let summaryDegree: String? }
-        let data = try await post(path: "/api/cv-rebuild", body: Body(decisions: decisions, jd: jd, profile: profile, summaryDegree: summaryDegree))
+    static func rebuild(decisions: CVDecisions, jd: String, profile: String = "spencer", summaryDegree: String? = nil, jobTitles: [JobTitleOverride]? = nil) async throws -> (latex: String, pdfData: Data) {
+        struct Body: Encodable { let decisions: CVDecisions; let jd: String; let profile: String; let summaryDegree: String?; let jobTitles: [JobTitleOverride]? }
+        let data = try await post(path: "/api/cv-rebuild", body: Body(decisions: decisions, jd: jd, profile: profile, summaryDegree: summaryDegree, jobTitles: jobTitles))
         guard
             let decoded = try? JSONDecoder().decode(CVRebuildResponse.self, from: data),
             let pdfData = Data(base64Encoded: decoded.pdf)

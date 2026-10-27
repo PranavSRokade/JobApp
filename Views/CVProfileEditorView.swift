@@ -53,7 +53,7 @@ private struct CVProfileTabView: View {
             TabView {
                 SkillsPoolTab(skills: $profile.skills, profileKey: profileKey)
                     .tabItem { Label("Skills", systemImage: "list.bullet") }
-                BulletsTab(pools: $profile.bullets, profileKey: profileKey)
+                BulletsTab(pools: $profile.bullets, skills: profile.skills, profileKey: profileKey)
                     .tabItem { Label("Bullets", systemImage: "text.alignleft") }
                 TemplateTab(hasCustomTemplate: $profile.hasCustomTemplate, profileKey: profileKey)
                     .tabItem { Label("Template", systemImage: "doc.text") }
@@ -139,6 +139,8 @@ private struct SkillsPoolTab: View {
 
 private struct BulletsTab: View {
     @Binding var pools: CVProfileBulletPools
+    /// The live skills pool, so the tag picker offers what the Skills tab holds (not just the built-in list)
+    let skills: [String]
     let profileKey: String
     @State private var selectedCompany: CVCompany = .nHabit
     @State private var editTarget: CVProfileBullet? = nil
@@ -148,6 +150,7 @@ private struct BulletsTab: View {
     @State private var isError = false
 
     private var currentPool: [CVProfileBullet] { pools.pool(for: selectedCompany) }
+    private var pickerSkills: [String] { skills.isEmpty ? defaultSkillsList : skills }
 
     var body: some View {
         List {
@@ -191,7 +194,7 @@ private struct BulletsTab: View {
             }
         }
         .sheet(item: $editTarget) { bullet in
-            BulletEditSheet(bullet: bullet, allSkills: defaultSkillsList) { updated in
+            BulletEditSheet(bullet: bullet, allSkills: pickerSkills) { updated in
                 var pool = currentPool
                 if let i = pool.firstIndex(where: { $0.id == updated.id }) { pool[i] = updated }
                 pools.setPool(pool, for: selectedCompany)
@@ -200,7 +203,7 @@ private struct BulletsTab: View {
         .sheet(isPresented: $addingNew) {
             BulletEditSheet(
                 bullet: CVProfileBullet(id: UUID().uuidString, pinned: false, skills: [], latex: ""),
-                allSkills: defaultSkillsList
+                allSkills: pickerSkills
             ) { newBullet in
                 var pool = currentPool
                 pool.append(newBullet)
@@ -266,6 +269,8 @@ private struct BulletEditSheet: View {
     var onSave: (CVProfileBullet) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var showSkillsPicker = false
+    @State private var newTag = ""
+    @FocusState private var latexFocused: Bool
 
     var body: some View {
         NavigationStack {
@@ -274,28 +279,74 @@ private struct BulletEditSheet: View {
                     TextEditor(text: $bullet.latex)
                         .font(.system(size: 13, design: .monospaced))
                         .frame(minHeight: 120)
+                        .focused($latexFocused)
                 }
                 Section {
                     Toggle("Pinned (always included)", isOn: $bullet.pinned)
                 } header: {
                     Text("Options")
                 }
+                // Tags are editable right here (chips + add field) so a brand-new bullet can be tagged
+                // without a second sheet; the pool picker is still there for choosing from the list.
                 Section {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Skill Tags")
+                    if bullet.skills.isEmpty {
+                        Text("No tags yet")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 6) {
+                                ForEach(bullet.skills, id: \.self) { skill in
+                                    HStack(spacing: 4) {
+                                        Text(skill)
+                                        Image(systemName: "xmark.circle.fill")
+                                            .font(.system(size: 11))
+                                            .opacity(0.7)
+                                    }
+                                    .font(.system(size: 12, weight: .medium))
+                                    .padding(.horizontal, 8).padding(.vertical, 4)
+                                    .background(Color.indigo.opacity(0.12))
+                                    .foregroundColor(.indigo)
+                                    .clipShape(Capsule())
+                                    .contentShape(Capsule())
+                                    .onTapGesture { bullet.skills.removeAll { $0 == skill } }
+                                }
+                            }
+                        }
+                    }
+                    HStack(spacing: 10) {
+                        Image(systemName: "plus.circle.fill")
+                            .foregroundColor(.indigo)
+                        TextField("Add a tag…", text: $newTag)
+                            .font(.system(size: 14))
+                            .autocorrectionDisabled()
+                            .submitLabel(.done)
+                            .onSubmit { addTag() }
+                        if !newTag.trimmingCharacters(in: .whitespaces).isEmpty {
+                            Button("Add") { addTag() }
+                                .buttonStyle(.borderless)
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.indigo)
+                        }
+                    }
+                    Button {
+                        // Drop keyboard focus first: presenting a sheet while the editor's keyboard is
+                        // still up is what left new bullets impossible to tag.
+                        latexFocused = false
+                        showSkillsPicker = true
+                    } label: {
+                        HStack {
+                            Text("Choose from skills pool")
                                 .font(.system(size: 14))
                                 .foregroundColor(.primary)
-                            Text(bullet.skills.isEmpty ? "None" : bullet.skills.joined(separator: ", "))
-                                .font(.caption).foregroundColor(.secondary).lineLimit(2)
+                            Spacer()
+                            Image(systemName: "chevron.right").foregroundColor(.secondary).font(.caption)
                         }
-                        Spacer()
-                        Image(systemName: "chevron.right").foregroundColor(.secondary).font(.caption)
                     }
-                    .contentShape(Rectangle())
-                    .onTapGesture { showSkillsPicker = true }
                 } header: {
-                    Text("Skills (used for AI bullet matching)")
+                    Text("Skill Tags (used for AI bullet matching)")
+                } footer: {
+                    Text("Tap a tag to remove it.")
                 }
                 Section("Preview") {
                     Text(bullet.displayText)
@@ -317,6 +368,12 @@ private struct BulletEditSheet: View {
                     .fontWeight(.semibold)
                     .disabled(bullet.latex.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                    }
+                }
             }
             .sheet(isPresented: $showSkillsPicker) {
                 SkillsPickerView(
@@ -328,6 +385,16 @@ private struct BulletEditSheet: View {
                 )
             }
         }
+    }
+
+    /// Adds a typed tag, reusing the pool's or the bullet's spelling on a case-insensitive match.
+    private func addTag() {
+        let typed = newTag.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !typed.isEmpty else { return }
+        let existing = (bullet.skills + allSkills).first { $0.caseInsensitiveCompare(typed) == .orderedSame }
+        let tag = existing ?? typed
+        if !bullet.skills.contains(tag) { bullet.skills.append(tag) }
+        newTag = ""
     }
 }
 
