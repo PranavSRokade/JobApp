@@ -54,6 +54,14 @@ final class RegionJobsModel: ObservableObject {
     }
 }
 
+/// List modes. Normal is the ranked list; Visa keeps only jobs that sponsor, either because the scorer
+/// read it in the JD or because the employer is on the UK sponsor register sheet.
+enum JobSortMode: String, CaseIterable, Identifiable {
+    case normal, visa
+    var id: String { rawValue }
+    var title: String { self == .normal ? "Normal" : "Visa jobs" }
+}
+
 @MainActor
 final class JobsViewModel: ObservableObject {
     // Each market is a real, independent list; both load in parallel at launch.
@@ -85,6 +93,7 @@ final class JobsViewModel: ObservableObject {
     private var jobSheetMap: [Int: String] = [:]
     @Published var showStarredOnly = false
     @Published var searchText = ""
+    @Published var sortMode: JobSortMode = .normal
 
     // MARK: Active-market forwarders — keep existing call sites (detail, manage sheets) working
 
@@ -101,6 +110,17 @@ final class JobsViewModel: ObservableObject {
     var filteredJobs: [Job] { filteredJobs(in: active) }
 
     func filteredJobs(in model: RegionJobsModel) -> [Job] {
+        let ranked = rankedJobs(in: model)
+        guard sortMode == .visa else { return ranked }
+        // JD-confirmed sponsorship first, then employers found on the register; rank order kept within
+        // each group. A posting whose JD says "no sponsorship" stays out even if the company is licensed.
+        let register = SponsorRegisterStore.shared
+        let confirmed = ranked.filter { $0.sponsored }
+        let registerOnly = ranked.filter { !$0.sponsored && !$0.noSponsorship && register.hasSponsor(company: $0.company) }
+        return confirmed + registerOnly
+    }
+
+    private func rankedJobs(in model: RegionJobsModel) -> [Job] {
         var base = filtersStore.apply(to: model.jobs)
         if !searchText.isEmpty {
             let q = searchText.lowercased()

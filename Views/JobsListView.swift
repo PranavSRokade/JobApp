@@ -6,6 +6,8 @@ struct JobsListView: View {
     @State private var showManageSheets = false
     @State private var showProfileEditor = false
     @State private var showFilters = false
+    // Visa mode filters on the register, so the list must recompute once the sheet finishes parsing
+    @ObservedObject private var sponsorStore = SponsorRegisterStore.shared
     @State private var showQuickCV = false
     @State private var showBulletSuggester = false
     @State private var showFeatureChats = false
@@ -24,10 +26,21 @@ struct JobsListView: View {
             .safeAreaInset(edge: .top, spacing: 0) {
                 MarketTabs(region: $vm.region)
             }
-            .navigationTitle(vm.showStarredOnly ? "\(vm.filteredJobs.count) Starred" : "\(vm.filteredJobs.count) Jobs")
+            .navigationTitle(vm.showStarredOnly ? "\(vm.filteredJobs.count) Starred"
+                             : vm.sortMode == .visa ? "\(vm.filteredJobs.count) Visa jobs"
+                             : "\(vm.filteredJobs.count) Jobs")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
+                        Menu {
+                            Picker("Sort", selection: $vm.sortMode) {
+                                ForEach(JobSortMode.allCases) { mode in
+                                    Label(mode.title, systemImage: mode == .visa ? "checkmark.shield" : "list.bullet").tag(mode)
+                                }
+                            }
+                        } label: {
+                            Label("Sort: \(vm.sortMode.title)", systemImage: "arrow.up.arrow.down")
+                        }
                         Button { vm.showStarredOnly.toggle() } label: {
                             Label(vm.showStarredOnly ? "Show All" : "Show Starred",
                                   systemImage: vm.showStarredOnly ? "star.slash" : "star")
