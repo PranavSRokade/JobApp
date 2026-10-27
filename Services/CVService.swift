@@ -31,6 +31,17 @@ private struct CoverLetterResponse: Decodable {
     let text: String
 }
 
+private struct CoverLetterRenderResponse: Decodable {
+    let pdf: String
+}
+
+/// A generated cover letter: the plain text the model wrote plus the PDF rendered from it.
+/// Keeping the text lets the preview edit it and re-render without another AI call.
+struct CoverLetterResult {
+    var text: String
+    var pdfData: Data
+}
+
 struct CVService {
     private static let baseURL = "https://job-worker.pranavrokade.workers.dev"
 
@@ -64,11 +75,22 @@ struct CVService {
         return decoded.text
     }
 
-    static func generateCoverLetter(jd: String, latex: String?, profile: String = "spencer") async throws -> Data {
+    static func generateCoverLetter(jd: String, latex: String?, profile: String = "spencer") async throws -> CoverLetterResult {
         struct Body: Encodable { let jd: String; let latex: String?; let profile: String }
         let data = try await post(path: "/api/cover-letter", body: Body(jd: jd, latex: latex, profile: profile))
         guard
             let decoded = try? JSONDecoder().decode(CoverLetterResponse.self, from: data),
+            let pdfData = Data(base64Encoded: decoded.pdf)
+        else { throw CVServiceError.decodingError }
+        return CoverLetterResult(text: decoded.text, pdfData: pdfData)
+    }
+
+    /// Re-renders an edited cover letter to PDF. No AI involved, so this is fast and deterministic.
+    static func renderCoverLetter(text: String, profile: String = "spencer") async throws -> Data {
+        struct Body: Encodable { let text: String; let profile: String }
+        let data = try await post(path: "/api/cover-letter/render", body: Body(text: text, profile: profile))
+        guard
+            let decoded = try? JSONDecoder().decode(CoverLetterRenderResponse.self, from: data),
             let pdfData = Data(base64Encoded: decoded.pdf)
         else { throw CVServiceError.decodingError }
         return pdfData

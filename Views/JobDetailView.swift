@@ -14,7 +14,7 @@ struct JobDetailView: View {
     @State private var cvError: String? = nil
     @State private var showCVOptions = false
     @State private var isGeneratingCoverLetter = false
-    @State private var coverLetterPdf: Data? = nil
+    @State private var coverLetter: CoverLetterResult? = nil
     @State private var coverLetterError: String? = nil
     // Description fetched on demand when the scraper couldn't get it (LinkedIn rate limit)
     @State private var fetchedJD: String? = nil
@@ -305,11 +305,11 @@ struct JobDetailView: View {
             }
         }
         .sheet(isPresented: Binding(
-            get: { coverLetterPdf != nil },
-            set: { if !$0 { coverLetterPdf = nil } }
+            get: { coverLetter != nil },
+            set: { if !$0 { coverLetter = nil } }
         )) {
-            if let pdf = coverLetterPdf {
-                CoverLetterPreviewView(pdfData: pdf, jobTitle: job.title)
+            if let letter = coverLetter {
+                CoverLetterPreviewView(letter: letter, jobTitle: job.title, profile: profile)
             }
         }
     }
@@ -536,8 +536,7 @@ struct JobDetailView: View {
         coverLetterError = nil
         Task {
             do {
-                let pdf = try await CVService.generateCoverLetter(jd: jd, latex: latex, profile: profile)
-                coverLetterPdf = pdf
+                coverLetter = try await CVService.generateCoverLetter(jd: jd, latex: latex, profile: profile)
             } catch {
                 coverLetterError = error.localizedDescription
             }
