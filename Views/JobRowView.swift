@@ -5,6 +5,7 @@ struct JobRowView: View {
     let sheetName: String?
     @ObservedObject var starredStore: StarredJobsStore
     var isApplied: Bool = false
+    var region: String = "uk"
     @ObservedObject private var sponsorStore = SponsorRegisterStore.shared
 
     private var isStarred: Bool { starredStore.isStarred(job.jobId) }
@@ -123,7 +124,7 @@ struct JobRowView: View {
         .padding(.vertical, 6)
         .swipeActions(edge: .leading, allowsFullSwipe: true) {
             Button {
-                starredStore.toggle(job.jobId)
+                starredStore.toggle(job, region: region)
             } label: {
                 Label(isStarred ? "Unstar" : "Star", systemImage: isStarred ? "star.slash.fill" : "star.fill")
             }

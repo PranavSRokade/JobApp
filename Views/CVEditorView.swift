@@ -15,9 +15,9 @@ struct CVEditorView: View {
     @State private var showSummarySkillsPicker = false
     @State private var showJD = false
     @State private var livePools: CVBulletPools? = nil
-    // Per-CV education heading override — shorten it here when the CV runs out of space
-    @State private var educationTitle: String = ""
-    @State private var defaultEducationTitle: String = ""
+    // Per-CV degree phrase in the summary — shorten it here so the summary fits on one page
+    @State private var summaryDegree: String = ""
+    @State private var defaultSummaryDegree: String = ""
     @Environment(\.dismiss) private var dismiss
 
     private var activePools: CVBulletPools { livePools ?? pools }
@@ -26,7 +26,6 @@ struct CVEditorView: View {
         NavigationStack {
             List {
                 summarySection
-                educationSection
                 skillsSection
                 projectSection
                 ForEach(CVCompany.cases(for: profile), id: \.self) { companySection($0) }
@@ -105,6 +104,28 @@ struct CVEditorView: View {
                 ))
                 .font(.system(size: 14))
             }
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Degree (in summary)").font(.caption).foregroundColor(.secondary)
+                TextField(defaultSummaryDegree.isEmpty ? "e.g. MSc in Adv. Software Engineering" : defaultSummaryDegree,
+                          text: $summaryDegree)
+                    .font(.system(size: 14))
+                    .autocorrectionDisabled()
+                if !summaryDegree.isEmpty && summaryDegree != defaultSummaryDegree {
+                    Button {
+                        Task {
+                            var settings = (try? await CVProfileService.fetchProfile(for: profile))?.settings ?? .empty
+                            settings.summaryDegree = summaryDegree
+                            try? await CVProfileService.saveSettings(settings, for: profile)
+                            defaultSummaryDegree = summaryDegree
+                        }
+                    } label: {
+                        Label("Save as default for future CVs", systemImage: "square.and.arrow.down")
+                            .font(.caption)
+                            .foregroundColor(.indigo)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Summary Skills")
@@ -122,35 +143,6 @@ struct CVEditorView: View {
             .onTapGesture { showSummarySkillsPicker = true }
         } header: {
             Text("Professional Summary")
-        }
-    }
-
-    // MARK: - Education section
-
-    private var educationSection: some View {
-        Section {
-            TextField(defaultEducationTitle.isEmpty ? "e.g. Masters in Advanced Software Engineering $\\vert$ Merit" : defaultEducationTitle,
-                      text: $educationTitle, axis: .vertical)
-                .font(.system(size: 13, design: .monospaced))
-                .autocorrectionDisabled()
-            if !educationTitle.isEmpty && educationTitle != defaultEducationTitle {
-                Button {
-                    Task {
-                        var settings = (try? await CVProfileService.fetchProfile(for: profile))?.settings ?? .empty
-                        settings.educationTitle = educationTitle
-                        try? await CVProfileService.saveSettings(settings, for: profile)
-                        defaultEducationTitle = educationTitle
-                    }
-                } label: {
-                    Label("Save as default for future CVs", systemImage: "square.and.arrow.down")
-                        .font(.system(size: 13))
-                        .foregroundColor(.indigo)
-                }
-            }
-        } header: {
-            Text("Education heading")
-        } footer: {
-            Text("The degree line under Education (LaTeX). Shorten it if this CV runs out of space — leave unchanged to use the default.")
         }
     }
 
@@ -277,9 +269,9 @@ struct CVEditorView: View {
             skillsArray: freshProfile.skills,
             projectOptions: pools.projectOptions
         )
-        let stored = freshProfile.settings?.educationTitle ?? ""
-        defaultEducationTitle = stored
-        if educationTitle.isEmpty { educationTitle = stored }
+        let stored = freshProfile.settings?.summaryDegree ?? ""
+        defaultSummaryDegree = stored
+        if summaryDegree.isEmpty { summaryDegree = stored }
     }
 
     // MARK: - Rebuild action
@@ -288,10 +280,10 @@ struct CVEditorView: View {
         isRebuilding = true
         rebuildError = nil
         do {
-            let override = educationTitle.trimmingCharacters(in: .whitespaces)
+            let override = summaryDegree.trimmingCharacters(in: .whitespaces)
             let (latex, pdfData) = try await CVService.rebuild(
                 decisions: decisions, jd: jd, profile: profile,
-                educationTitle: override.isEmpty || override == defaultEducationTitle ? nil : override
+                summaryDegree: override.isEmpty || override == defaultSummaryDegree ? nil : override
             )
             let updated = CVResult(latex: latex, pdfData: pdfData, decisions: decisions, pools: pools)
             CVCacheStore.save(updated, for: jobId)

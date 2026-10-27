@@ -44,9 +44,9 @@ struct CVService {
         return CVResult(latex: decoded.latex, pdfData: pdfData, decisions: decoded.decisions, pools: decoded.pools)
     }
 
-    static func rebuild(decisions: CVDecisions, jd: String, profile: String = "spencer", educationTitle: String? = nil) async throws -> (latex: String, pdfData: Data) {
-        struct Body: Encodable { let decisions: CVDecisions; let jd: String; let profile: String; let educationTitle: String? }
-        let data = try await post(path: "/api/cv-rebuild", body: Body(decisions: decisions, jd: jd, profile: profile, educationTitle: educationTitle))
+    static func rebuild(decisions: CVDecisions, jd: String, profile: String = "spencer", summaryDegree: String? = nil) async throws -> (latex: String, pdfData: Data) {
+        struct Body: Encodable { let decisions: CVDecisions; let jd: String; let profile: String; let summaryDegree: String? }
+        let data = try await post(path: "/api/cv-rebuild", body: Body(decisions: decisions, jd: jd, profile: profile, summaryDegree: summaryDegree))
         guard
             let decoded = try? JSONDecoder().decode(CVRebuildResponse.self, from: data),
             let pdfData = Data(base64Encoded: decoded.pdf)

@@ -104,7 +104,17 @@ private struct FeedPage: View {
                             } label: {
                                 FeedRow(job: job,
                                         isNew: newIds.contains(job.jobId),
-                                        isApplied: applicationsStore.isApplied(job.jobId))
+                                        isApplied: applicationsStore.isApplied(job.jobId),
+                                        isStarred: starredStore.isStarred(job.jobId))
+                            }
+                            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                Button {
+                                    starredStore.toggle(job, region: region)
+                                } label: {
+                                    Label(starredStore.isStarred(job.jobId) ? "Unstar" : "Star",
+                                          systemImage: starredStore.isStarred(job.jobId) ? "star.slash.fill" : "star.fill")
+                                }
+                                .tint(.yellow)
                             }
                         }
                     } header: {
@@ -165,11 +175,17 @@ private struct FeedRow: View {
     let job: Job
     let isNew: Bool
     let isApplied: Bool
+    var isStarred: Bool = false
     @ObservedObject private var sponsorStore = SponsorRegisterStore.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 6) {
+                if isStarred {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 11))
+                        .foregroundColor(.yellow)
+                }
                 Text(job.title)
                     .font(.system(size: 15, weight: .semibold))
                     .lineLimit(2)

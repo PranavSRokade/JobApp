@@ -283,7 +283,7 @@ struct JobDetailView: View {
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
-                    starredStore.toggle(job.jobId)
+                    starredStore.toggle(job, region: region)
                 } label: {
                     Image(systemName: isStarred ? "star.fill" : "star")
                         .foregroundColor(isStarred ? .yellow : .secondary)

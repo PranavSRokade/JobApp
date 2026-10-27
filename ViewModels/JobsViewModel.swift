@@ -111,7 +111,19 @@ final class JobsViewModel: ObservableObject {
             }
         }
         if showStarredOnly {
-            return base.filter { starredStore.isStarred($0.jobId) }
+            // Merge snapshot-starred jobs (e.g. from the feed) that aren't in this sheet tab
+            let tabIds = Set(model.jobs.map(\.jobId))
+            let inTab = base.filter { starredStore.isStarred($0.jobId) }
+            var extra = starredStore.starredJobs(region: model.region).filter { !tabIds.contains($0.jobId) }
+            if !searchText.isEmpty {
+                let q = searchText.lowercased()
+                extra = extra.filter {
+                    $0.title.lowercased().contains(q) ||
+                    $0.company.lowercased().contains(q) ||
+                    $0.location.lowercased().contains(q)
+                }
+            }
+            return inTab + extra.sorted { $0.rank > $1.rank }
         }
         let starred = base.filter { starredStore.isStarred($0.jobId) }
         let rest = base.filter { !starredStore.isStarred($0.jobId) }
@@ -145,13 +157,9 @@ final class JobsViewModel: ObservableObject {
         }
 
         await model.load(silent: true)
-
-        // Clear stars for jobs that no longer exist after deletion
-        let remainingJobIds = Set(model.jobs.map(\.jobId))
-        let removedIds = previousJobIds.subtracting(remainingJobIds)
-        if !removedIds.isEmpty {
-            starredStore.clearStars(forJobIds: Array(removedIds))
-        }
+        // Stars deliberately survive tab deletion now — they're snapshot bookmarks,
+        // visible under Show Starred regardless of which tabs exist.
+        _ = previousJobIds
     }
 
     init() {

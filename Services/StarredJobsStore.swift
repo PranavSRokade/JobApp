@@ -1,8 +1,16 @@
 import Foundation
 import Combine
 
+/// A starred job is kept as a full snapshot, so stars work on feed jobs (which aren't in any
+/// sheet tab) and survive tab deletion. "Show Starred" renders from these snapshots.
+struct StarredSnapshot: Codable {
+    let job: Job
+    let region: String
+}
+
 final class StarredJobsStore: ObservableObject {
     @Published private(set) var starredIds: Set<Int> = []
+    private var snapshots: [Int: StarredSnapshot] = [:]
     private let profile: String
 
     init(profile: String) {
@@ -10,11 +18,13 @@ final class StarredJobsStore: ObservableObject {
         load()
     }
 
-    func toggle(_ jobId: Int) {
-        if starredIds.contains(jobId) {
-            starredIds.remove(jobId)
+    func toggle(_ job: Job, region: String) {
+        if starredIds.contains(job.jobId) {
+            starredIds.remove(job.jobId)
+            snapshots.removeValue(forKey: job.jobId)
         } else {
-            starredIds.insert(jobId)
+            starredIds.insert(job.jobId)
+            snapshots[job.jobId] = StarredSnapshot(job: job, region: region)
         }
         save()
     }
@@ -23,21 +33,27 @@ final class StarredJobsStore: ObservableObject {
         starredIds.contains(jobId)
     }
 
-    func clearStars(forJobIds ids: [Int]) {
-        let toRemove = Set(ids)
-        guard !starredIds.isDisjoint(with: toRemove) else { return }
-        starredIds.subtract(toRemove)
-        save()
+    /// All starred jobs for a market — including feed jobs that never reached a sheet tab.
+    func starredJobs(region: String) -> [Job] {
+        snapshots.values.filter { $0.region == region }.map(\.job)
     }
 
-    private func key() -> String { "starred_\(profile)" }
+    private func idsKey() -> String { "starred_\(profile)" }
+    private func snapshotsKey() -> String { "starredSnapshots_\(profile)" }
 
     private func load() {
-        let stored = UserDefaults.standard.array(forKey: key()) as? [Int] ?? []
+        let stored = UserDefaults.standard.array(forKey: idsKey()) as? [Int] ?? []
         starredIds = Set(stored)
+        if let data = UserDefaults.standard.data(forKey: snapshotsKey()),
+           let decoded = try? JSONDecoder().decode([Int: StarredSnapshot].self, from: data) {
+            snapshots = decoded
+        }
     }
 
     private func save() {
-        UserDefaults.standard.set(Array(starredIds), forKey: key())
+        UserDefaults.standard.set(Array(starredIds), forKey: idsKey())
+        if let data = try? JSONEncoder().encode(snapshots) {
+            UserDefaults.standard.set(data, forKey: snapshotsKey())
+        }
     }
 }

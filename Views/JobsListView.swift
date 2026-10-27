@@ -137,7 +137,7 @@ struct JobsListView: View {
             } else {
                 List(filtered) { job in
                     NavigationLink(destination: JobDetailView(job: job, sheetName: model.sheetName, starredStore: vm.starredStore, applicationsStore: vm.applicationsStore, profile: vm.selectedProfile, region: model.region)) {
-                        JobRowView(job: job, sheetName: model.sheetName, starredStore: vm.starredStore, isApplied: vm.applicationsStore.isApplied(job.jobId))
+                        JobRowView(job: job, sheetName: model.sheetName, starredStore: vm.starredStore, isApplied: vm.applicationsStore.isApplied(job.jobId), region: model.region)
                     }
                 }
                 .listStyle(.plain)
