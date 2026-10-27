@@ -3,8 +3,11 @@ import PDFKit
 
 struct CoverLetterPreviewView: View {
     @State var letter: CoverLetterResult
+    let jobId: Int
     let fileName: String
     let profile: String
+    /// False once the job is applied to: the letter is then a record of what was sent
+    var canEdit: Bool = true
     @Environment(\.dismiss) private var dismiss
 
     @State private var showEditor = false
@@ -21,7 +24,9 @@ struct CoverLetterPreviewView: View {
                     }
                     ToolbarItem(placement: .navigationBarTrailing) {
                         HStack(spacing: 16) {
-                            Button("Edit") { showEditor = true }
+                            if canEdit {
+                                Button("Edit") { showEditor = true }
+                            }
                             if let url = exportURL {
                                 ShareLink(item: url) {
                                     Image(systemName: "square.and.arrow.up")
@@ -35,6 +40,7 @@ struct CoverLetterPreviewView: View {
                     CoverLetterEditorView(text: letter.text, profile: profile) { newText, newPDF in
                         letter.text = newText
                         letter.pdfData = newPDF
+                        CoverLetterCacheStore.save(letter, for: jobId)
                     }
                 }
         }

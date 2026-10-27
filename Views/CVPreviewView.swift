@@ -43,6 +43,8 @@ struct CVPreviewView: View {
     let profile: String
     @State var result: CVResult
     var fileName: String = "Resume.pdf"
+    /// False once the job is applied to: the CV is then a record of what was sent
+    var canEdit: Bool = true
 
     @State private var showShareOptions = false
     @State private var shareItems: [Any]? = nil
@@ -56,8 +58,10 @@ struct CVPreviewView: View {
                 .navigationTitle("Generated CV")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    ToolbarItem(placement: .navigationBarLeading) {
-                        Button("Edit") { showEditor = true }
+                    if canEdit {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button("Edit") { showEditor = true }
+                        }
                     }
                     ToolbarItem(placement: .navigationBarTrailing) {
                         HStack(spacing: 16) {

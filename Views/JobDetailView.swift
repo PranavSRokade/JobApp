@@ -13,6 +13,7 @@ struct JobDetailView: View {
     @State private var cvResult: CVResult? = nil
     @State private var cvError: String? = nil
     @State private var showCVOptions = false
+    @State private var showCoverLetterOptions = false
     @State private var isGeneratingCoverLetter = false
     @State private var coverLetter: CoverLetterResult? = nil
     @State private var coverLetterError: String? = nil
@@ -28,6 +29,7 @@ struct JobDetailView: View {
     @State private var contactEmails: [String] = []
 
     private var isStarred: Bool { starredStore.isStarred(job.jobId) }
+    private var isApplied: Bool { applicationsStore.application(for: job.jobId) != nil }
     private var effectiveJD: String? { job.jd ?? fetchedJD ?? JDCache.load(for: job.jobId) }
 
     var body: some View {
@@ -137,62 +139,78 @@ struct JobDetailView: View {
                     }
                 }
 
+                // Once applied, the cached documents are the record of what was sent: view only, no regenerating
+                if isApplied {
+                    sentDocumentsBlock
+                }
+
                 // Generate CV + Cover Letter — both require a JD
                 if let jd = effectiveJD {
-                    let hasCachedCV = CVCacheStore.load(for: job.jobId) != nil
-                    HStack(spacing: 10) {
-                        Button {
-                            if hasCachedCV {
-                                showCVOptions = true
-                            } else {
-                                generateCV(jd: jd)
-                            }
-                        } label: {
-                            Group {
-                                if isGeneratingCV {
-                                    HStack(spacing: 6) {
-                                        ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                        // live seconds so a slow fallback provider doesn't look frozen
-                                        TimelineView(.periodic(from: cvStartedAt, by: 1)) { context in
-                                            Text("Generating… \(Int(context.date.timeIntervalSince(cvStartedAt)))s")
-                                                .lineLimit(1)
-                                                .monospacedDigit()
+                    if !isApplied {
+                        let hasCachedCV = CVCacheStore.exists(for: job.jobId)
+                        HStack(spacing: 10) {
+                            Button {
+                                if hasCachedCV {
+                                    showCVOptions = true
+                                } else {
+                                    generateCV(jd: jd)
+                                }
+                            } label: {
+                                Group {
+                                    if isGeneratingCV {
+                                        HStack(spacing: 6) {
+                                            ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                            // live seconds so a slow fallback provider doesn't look frozen
+                                            TimelineView(.periodic(from: cvStartedAt, by: 1)) { context in
+                                                Text("Generating… \(Int(context.date.timeIntervalSince(cvStartedAt)))s")
+                                                    .lineLimit(1)
+                                                    .monospacedDigit()
+                                            }
                                         }
+                                    } else {
+                                        Label("Generate CV", systemImage: "doc.text.fill").lineLimit(1)
                                     }
-                                } else {
-                                    Label("Generate CV", systemImage: "doc.text.fill").lineLimit(1)
                                 }
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.green)
+                                .foregroundColor(.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
                             }
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.green)
-                            .foregroundColor(.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                        }
-                        .disabled(isGeneratingCV)
-                        .confirmationDialog("A CV was already generated for this job.", isPresented: $showCVOptions, titleVisibility: .visible) {
-                            Button("Use Saved CV") { cvResult = CVCacheStore.load(for: job.jobId) }
-                            Button("Generate New CV") { generateCV(jd: jd) }
-                            Button("Cancel", role: .cancel) {}
-                        }
+                            .disabled(isGeneratingCV)
+                            .confirmationDialog("A CV was already generated for this job.", isPresented: $showCVOptions, titleVisibility: .visible) {
+                                Button("Use Saved CV") { cvResult = CVCacheStore.load(for: job.jobId) }
+                                Button("Generate New CV") { generateCV(jd: jd) }
+                                Button("Cancel", role: .cancel) {}
+                            }
 
-                        Button {
-                            generateCoverLetter(jd: jd, latex: CVCacheStore.load(for: job.jobId)?.latex)
-                        } label: {
-                            Group {
-                                if isGeneratingCoverLetter {
-                                    ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            Button {
+                                if CoverLetterCacheStore.exists(for: job.jobId) {
+                                    showCoverLetterOptions = true
                                 } else {
-                                    Label("Cover Letter", systemImage: "envelope.fill").lineLimit(1)
+                                    generateCoverLetter(jd: jd, latex: CVCacheStore.load(for: job.jobId)?.latex)
                                 }
+                            } label: {
+                                Group {
+                                    if isGeneratingCoverLetter {
+                                        ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    } else {
+                                        Label("Cover Letter", systemImage: "envelope.fill").lineLimit(1)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.indigo)
+                                .foregroundColor(.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
                             }
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.indigo)
-                            .foregroundColor(.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .disabled(isGeneratingCoverLetter)
+                            .confirmationDialog("A cover letter was already generated for this job.", isPresented: $showCoverLetterOptions, titleVisibility: .visible) {
+                                Button("Use Saved Cover Letter") { coverLetter = CoverLetterCacheStore.load(for: job.jobId) }
+                                Button("Generate New Cover Letter") { generateCoverLetter(jd: jd, latex: CVCacheStore.load(for: job.jobId)?.latex) }
+                                Button("Cancel", role: .cancel) {}
+                            }
                         }
-                        .disabled(isGeneratingCoverLetter)
                     }
 
                     // "Why do you want to work here?" style answer, grounded in the JD + CV
@@ -296,7 +314,8 @@ struct JobDetailView: View {
         )) {
             if let result = cvResult {
                 CVPreviewView(jd: effectiveJD ?? "", jobId: job.jobId, profile: profile, result: result,
-                              fileName: resumeFileName(title: job.title, company: job.company, location: job.location))
+                              fileName: resumeFileName(title: job.title, company: job.company, location: job.location),
+                              canEdit: !isApplied)
             }
         }
         .sheet(isPresented: $showAnswer) {
@@ -310,8 +329,56 @@ struct JobDetailView: View {
         )) {
             if let letter = coverLetter {
                 CoverLetterPreviewView(letter: letter,
+                                       jobId: job.jobId,
                                        fileName: coverLetterFileName(title: job.title, company: job.company, location: job.location),
-                                       profile: profile)
+                                       profile: profile,
+                                       canEdit: !isApplied)
+            }
+        }
+    }
+
+    // MARK: - Documents sent with the application
+
+    /// After applying, the cached CV and cover letter are the record of what went out: open them read-only.
+    private var sentDocumentsBlock: some View {
+        let hasCV = CVCacheStore.exists(for: job.jobId)
+        let hasLetter = CoverLetterCacheStore.exists(for: job.jobId)
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("Sent with this application")
+                .font(.headline)
+            HStack(spacing: 10) {
+                Button {
+                    cvResult = CVCacheStore.load(for: job.jobId)
+                } label: {
+                    Label(hasCV ? "View CV" : "No CV saved", systemImage: "doc.text.fill")
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(hasCV ? Color.green : Color.gray.opacity(0.35))
+                        .foregroundColor(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+                .disabled(!hasCV)
+
+                Button {
+                    coverLetter = CoverLetterCacheStore.load(for: job.jobId)
+                } label: {
+                    Label(hasLetter ? "View Cover Letter" : "No letter saved", systemImage: "envelope.fill")
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(hasLetter ? Color.indigo : Color.gray.opacity(0.35))
+                        .foregroundColor(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+                .disabled(!hasLetter)
+            }
+            if !hasCV && !hasLetter {
+                Text("Nothing was generated for this job before you applied.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
         }
     }
@@ -538,7 +605,9 @@ struct JobDetailView: View {
         coverLetterError = nil
         Task {
             do {
-                coverLetter = try await CVService.generateCoverLetter(jd: jd, latex: latex, profile: profile)
+                let letter = try await CVService.generateCoverLetter(jd: jd, latex: latex, profile: profile)
+                CoverLetterCacheStore.save(letter, for: job.jobId)
+                coverLetter = letter
             } catch {
                 coverLetterError = error.localizedDescription
             }

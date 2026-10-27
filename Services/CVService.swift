@@ -37,7 +37,7 @@ private struct CoverLetterRenderResponse: Decodable {
 
 /// A generated cover letter: the plain text the model wrote plus the PDF rendered from it.
 /// Keeping the text lets the preview edit it and re-render without another AI call.
-struct CoverLetterResult {
+struct CoverLetterResult: Codable {
     var text: String
     var pdfData: Data
 }
