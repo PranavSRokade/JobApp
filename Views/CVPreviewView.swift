@@ -4,13 +4,22 @@ import PDFKit
 /// "Resume_<Role title>_<Company name>_<City>.pdf" — parts that are unknown are left out,
 /// e.g. Quick CV (pasted JD) gives "Resume_React Native Engineer.pdf".
 func resumeFileName(title: String, company: String? = nil, location: String? = nil) -> String {
+    documentFileName(prefix: "Resume", title: title, company: company, location: location)
+}
+
+/// Same shape as the resume: "Cover Letter_<Role title>_<Company name>_<City>.pdf"
+func coverLetterFileName(title: String, company: String? = nil, location: String? = nil) -> String {
+    documentFileName(prefix: "Cover Letter", title: title, company: company, location: location)
+}
+
+private func documentFileName(prefix: String, title: String, company: String?, location: String?) -> String {
     func clean(_ s: String) -> String {
         s.replacingOccurrences(of: #"\([^)]*\)|\[[^\]]*\]"#, with: "", options: .regularExpression) // "(100% Remote)"
             .replacingOccurrences(of: #"[/\\:*?"<>|_]+"#, with: " ", options: .regularExpression)    // illegal in file names (and our separator)
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: CharacterSet(charactersIn: " -,."))
     }
-    let parts = ["Resume", clean(title), clean(company ?? ""), clean(city(from: location ?? ""))]
+    let parts = [prefix, clean(title), clean(company ?? ""), clean(city(from: location ?? ""))]
         .filter { !$0.isEmpty }
         .map { String($0.prefix(60)) }
     return parts.joined(separator: "_") + ".pdf"

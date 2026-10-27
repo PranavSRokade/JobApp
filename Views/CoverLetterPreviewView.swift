@@ -3,7 +3,7 @@ import PDFKit
 
 struct CoverLetterPreviewView: View {
     @State var letter: CoverLetterResult
-    let jobTitle: String
+    let fileName: String
     let profile: String
     @Environment(\.dismiss) private var dismiss
 
@@ -41,10 +41,9 @@ struct CoverLetterPreviewView: View {
     }
 
     private var exportURL: URL? {
-        let name = "Cover Letter - \(jobTitle).pdf"
-            .replacingOccurrences(of: "/", with: "-")
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
-        try? letter.pdfData.write(to: url)
+        // The share sheet / "Save to Files" uses the file's name, so it follows the resume's format
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        try? letter.pdfData.write(to: url, options: .atomic)
         return url
     }
 }

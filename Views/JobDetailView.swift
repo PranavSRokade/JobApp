@@ -309,7 +309,9 @@ struct JobDetailView: View {
             set: { if !$0 { coverLetter = nil } }
         )) {
             if let letter = coverLetter {
-                CoverLetterPreviewView(letter: letter, jobTitle: job.title, profile: profile)
+                CoverLetterPreviewView(letter: letter,
+                                       fileName: coverLetterFileName(title: job.title, company: job.company, location: job.location),
+                                       profile: profile)
             }
         }
     }
