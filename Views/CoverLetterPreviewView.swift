@@ -11,6 +11,7 @@ struct CoverLetterPreviewView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var showEditor = false
+    @State private var showSave = false
 
     var body: some View {
         NavigationStack {
@@ -27,6 +28,11 @@ struct CoverLetterPreviewView: View {
                             if canEdit {
                                 Button("Edit") { showEditor = true }
                             }
+                            Button {
+                                showSave = true
+                            } label: {
+                                Image(systemName: "square.and.arrow.down")
+                            }
                             if let url = exportURL {
                                 ShareLink(item: url) {
                                     Image(systemName: "square.and.arrow.up")
@@ -35,6 +41,7 @@ struct CoverLetterPreviewView: View {
                         }
                     }
                 }
+                .savePDF(isPresented: $showSave, data: letter.pdfData, fileName: fileName)
                 .sheet(isPresented: $showEditor) {
                     // Seeded from the current text, so re-opening after a rebuild shows the latest version
                     CoverLetterEditorView(text: letter.text, profile: profile) { newText, newPDF in

@@ -1,5 +1,6 @@
 import SwiftUI
 import PDFKit
+import UniformTypeIdentifiers
 
 /// "Resume_<Role title>_<Company name>_<City>.pdf" — parts that are unknown are left out,
 /// e.g. Quick CV (pasted JD) gives "Resume_React Native Engineer.pdf".
@@ -50,6 +51,7 @@ struct CVPreviewView: View {
     @State private var shareItems: [Any]? = nil
     @State private var showEditor = false
     @State private var showJD = false
+    @State private var showSave = false
 
     var body: some View {
         NavigationStack {
@@ -73,6 +75,11 @@ struct CVPreviewView: View {
                                     .font(.system(size: 13, weight: .medium))
                             }
                             Button {
+                                showSave = true
+                            } label: {
+                                Image(systemName: "square.and.arrow.down")
+                            }
+                            Button {
                                 showShareOptions = true
                             } label: {
                                 Image(systemName: "square.and.arrow.up")
@@ -86,6 +93,7 @@ struct CVPreviewView: View {
                         .presentationDragIndicator(.visible)
                         .presentationBackgroundInteraction(.enabled(upThrough: .medium))
                 }
+                .savePDF(isPresented: $showSave, data: result.pdfData, fileName: fileName)
                 .confirmationDialog("Share as", isPresented: $showShareOptions, titleVisibility: .visible) {
                     Button("Share PDF") {
                         // The share sheet / "Save to Files" uses the file's name, so name it properly
@@ -147,6 +155,82 @@ struct JDQuickView: View {
             .navigationTitle("Job Description")
             .navigationBarTitleDisplayMode(.inline)
         }
+    }
+}
+
+// MARK: - Save to Files
+
+/// One tap to the Files save picker with the name already filled in, instead of share sheet →
+/// "Save to Files". A short "Saved" note confirms it; the exporter's error text shows if it failed.
+extension View {
+    func savePDF(isPresented: Binding<Bool>, data: Data, fileName: String) -> some View {
+        modifier(SavePDFModifier(isPresented: isPresented, data: data, fileName: fileName))
+    }
+}
+
+private struct SavePDFModifier: ViewModifier {
+    @Binding var isPresented: Bool
+    let data: Data
+    let fileName: String
+
+    private struct Note: Equatable {
+        let text: String
+        let ok: Bool
+    }
+    @State private var note: Note? = nil
+
+    func body(content: Content) -> some View {
+        content
+            .fileExporter(
+                isPresented: $isPresented,
+                document: PDFFileDocument(data: data),
+                contentType: .pdf,
+                // the picker appends ".pdf" itself; passing it too gives "Resume.pdf.pdf"
+                defaultFilename: (fileName as NSString).deletingPathExtension
+            ) { result in
+                switch result {
+                case .success: show(Note(text: "Saved", ok: true))
+                case .failure(let error): show(Note(text: error.localizedDescription, ok: false))
+                }
+            }
+            .overlay(alignment: .bottom) {
+                if let note {
+                    Label(note.text, systemImage: note.ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                        .font(.footnote.weight(.medium))
+                        .lineLimit(2)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(.regularMaterial, in: Capsule())
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 32)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .animation(.easeInOut(duration: 0.25), value: note)
+    }
+
+    private func show(_ new: Note) {
+        note = new
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            if note == new { note = nil }
+        }
+    }
+}
+
+/// The exporter wants a FileDocument; the PDF bytes are already rendered, so this just hands them over.
+struct PDFFileDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.pdf] }
+    let data: Data
+
+    init(data: Data) { self.data = data }
+
+    init(configuration: ReadConfiguration) throws {
+        data = configuration.file.regularFileContents ?? Data()
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
     }
 }
 
