@@ -61,9 +61,9 @@ struct CVService {
         return CVResult(latex: decoded.latex, pdfData: pdfData, decisions: decoded.decisions, pools: decoded.pools)
     }
 
-    static func rebuild(decisions: CVDecisions, jd: String, profile: String = "spencer", summaryDegree: String? = nil, jobTitles: [JobTitleOverride]? = nil) async throws -> (latex: String, pdfData: Data) {
-        struct Body: Encodable { let decisions: CVDecisions; let jd: String; let profile: String; let summaryDegree: String?; let jobTitles: [JobTitleOverride]? }
-        let data = try await post(path: "/api/cv-rebuild", body: Body(decisions: decisions, jd: jd, profile: profile, summaryDegree: summaryDegree, jobTitles: jobTitles))
+    static func rebuild(decisions: CVDecisions, jd: String, profile: String = "spencer", summaryDegree: String? = nil, summaryEducationLine: String? = nil, jobTitles: [JobTitleOverride]? = nil) async throws -> (latex: String, pdfData: Data) {
+        struct Body: Encodable { let decisions: CVDecisions; let jd: String; let profile: String; let summaryDegree: String?; let summaryEducationLine: String?; let jobTitles: [JobTitleOverride]? }
+        let data = try await post(path: "/api/cv-rebuild", body: Body(decisions: decisions, jd: jd, profile: profile, summaryDegree: summaryDegree, summaryEducationLine: summaryEducationLine, jobTitles: jobTitles))
         guard
             let decoded = try? JSONDecoder().decode(CVRebuildResponse.self, from: data),
             let pdfData = Data(base64Encoded: decoded.pdf)

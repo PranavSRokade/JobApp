@@ -28,6 +28,22 @@ struct CVProfileService {
         _ = try await put(path: "/api/profile/settings?profile=\(profile)", body: settings)
     }
 
+    /// A job in the active template with the dates the CV prints for it
+    struct TemplateJob: Decodable {
+        let company: String
+        let title: String
+        let templateDates: String
+        var dates: String
+    }
+
+    static func fetchTemplateJobs(for profile: String) async throws -> [TemplateJob] {
+        struct Resp: Decodable { let jobs: [TemplateJob] }
+        guard let url = URL(string: "\(base)/api/profile/jobs?profile=\(profile)") else { throw CVServiceError.decodingError }
+        let (data, _) = try await URLSession.shared.data(from: url)
+        guard let resp = try? JSONDecoder().decode(Resp.self, from: data) else { throw CVServiceError.decodingError }
+        return resp.jobs
+    }
+
     // MARK: CV prompt template
 
     struct PromptInfo: Decodable {

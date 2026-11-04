@@ -20,6 +20,9 @@ struct CVEditorView: View {
     // Per-CV degree phrase in the summary — shorten it here so the summary fits on one page
     @State private var summaryDegree: String = ""
     @State private var defaultSummaryDegree: String = ""
+    // Per-CV education sentence in the summary, same idea as the degree phrase
+    @State private var educationLine: String = ""
+    @State private var defaultEducationLine: String = ""
     // Per-CV job titles, one per work-experience heading in the LaTeX. Sent on every rebuild so an
     // earlier edit survives later bullet or skills changes.
     @State private var jobTitles: [JobTitleEdit] = []
@@ -133,6 +136,7 @@ struct CVEditorView: View {
                     .buttonStyle(.plain)
                 }
             }
+            if profile == "spencer" { educationLineField }
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Summary Skills")
@@ -298,6 +302,49 @@ struct CVEditorView: View {
         let stored = freshProfile.settings?.summaryDegree ?? ""
         defaultSummaryDegree = stored
         if summaryDegree.isEmpty { summaryDegree = stored }
+        let storedLine = freshProfile.settings?.summaryEducationLine ?? ""
+        defaultEducationLine = storedLine
+        if educationLine.isEmpty { educationLine = storedLine }
+    }
+
+    // The whole education sentence of the summary. Blank on the worker means
+    // "Holds an <degree> from King's College London."
+    private var educationLineField: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text("Education line (in summary)").font(.caption).foregroundColor(.secondary)
+                Spacer()
+                Menu {
+                    ForEach(CVSettings.educationLineSuggestions(degree: summaryDegree), id: \.self) { s in
+                        Button(s.replacingOccurrences(of: "**", with: "")) { educationLine = s }
+                    }
+                } label: {
+                    Label("Suggestions", systemImage: "sparkles").font(.caption).foregroundColor(.indigo)
+                }
+            }
+            TextField("Holds an **degree** from **King's College London**.", text: $educationLine, axis: .vertical)
+                .font(.system(size: 14))
+                .lineLimit(2...4)
+                .autocorrectionDisabled()
+            Text("Wrap words in **double asterisks** to make them bold.")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+            if educationLine.trimmingCharacters(in: .whitespacesAndNewlines) != defaultEducationLine {
+                Button {
+                    Task {
+                        var settings = (try? await CVProfileService.fetchProfile(for: profile))?.settings ?? .empty
+                        settings.summaryEducationLine = educationLine.trimmingCharacters(in: .whitespacesAndNewlines)
+                        try? await CVProfileService.saveSettings(settings, for: profile)
+                        defaultEducationLine = settings.summaryEducationLine
+                    }
+                } label: {
+                    Label("Save as default for future CVs", systemImage: "square.and.arrow.down")
+                        .font(.caption)
+                        .foregroundColor(.indigo)
+                }
+                .buttonStyle(.plain)
+            }
+        }
     }
 
     // MARK: - Rebuild action
@@ -307,12 +354,14 @@ struct CVEditorView: View {
         rebuildError = nil
         do {
             let override = summaryDegree.trimmingCharacters(in: .whitespaces)
+            let lineOverride = educationLine.trimmingCharacters(in: .whitespacesAndNewlines)
             let titleOverrides = jobTitles
                 .map { JobTitleOverride(company: $0.company, title: $0.title.trimmingCharacters(in: .whitespaces)) }
                 .filter { !$0.title.isEmpty }
             let (latex, pdfData) = try await CVService.rebuild(
                 decisions: decisions, jd: jd, profile: profile,
                 summaryDegree: override.isEmpty || override == defaultSummaryDegree ? nil : override,
+                summaryEducationLine: lineOverride.isEmpty || lineOverride == defaultEducationLine ? nil : lineOverride,
                 jobTitles: titleOverrides.isEmpty ? nil : titleOverrides
             )
             let updated = CVResult(latex: latex, pdfData: pdfData, decisions: decisions, pools: pools)

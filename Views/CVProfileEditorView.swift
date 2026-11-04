@@ -649,6 +649,8 @@ private struct SettingsTab: View {
     @State private var saveMessage: String? = nil
     @State private var isError = false
     @State private var showPrompt = false
+    @State private var jobs: [CVProfileService.TemplateJob] = []
+    @State private var jobsMessage = "Loading jobs…"
 
     var body: some View {
         List {
@@ -667,6 +669,43 @@ private struct SettingsTab: View {
                 Text("Degree (summary line)")
             } footer: {
                 Text("Short form used in the summary paragraph. Leave blank for the built-in default. The education heading itself is edited per CV, in Edit CV.")
+            }
+            if profileKey == "spencer" {
+                Section {
+                    TextField("Holds an **degree** from **King's College London**.", text: $settings.summaryEducationLine, axis: .vertical)
+                        .lineLimit(2...4)
+                        .autocorrectionDisabled()
+                    Menu {
+                        ForEach(CVSettings.educationLineSuggestions(degree: settings.summaryDegree), id: \.self) { s in
+                            Button(s.replacingOccurrences(of: "**", with: "")) { settings.summaryEducationLine = s }
+                        }
+                    } label: {
+                        Label("Suggestions", systemImage: "sparkles").foregroundColor(.indigo)
+                    }
+                } header: {
+                    Text("Education line (summary)")
+                } footer: {
+                    Text("The whole sentence after the skills. Wrap words in **double asterisks** for bold. Leave blank for “Holds an <degree> from King's College London.”")
+                }
+            }
+            Section {
+                if jobs.isEmpty {
+                    Text(jobsMessage).font(.system(size: 14)).foregroundColor(.secondary)
+                }
+                ForEach(jobs.indices, id: \.self) { i in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(jobs[i].company).font(.system(size: 14, weight: .semibold))
+                        Text(jobs[i].title).font(.caption).foregroundColor(.secondary)
+                        TextField(jobs[i].templateDates, text: $jobs[i].dates)
+                            .font(.system(size: 14))
+                            .autocorrectionDisabled()
+                    }
+                    .padding(.vertical, 2)
+                }
+            } header: {
+                Text("Job dates")
+            } footer: {
+                Text("Printed beside each job on every CV from now on. Clear a field to go back to the template's dates.")
             }
             Section {
                 Button { showPrompt = true } label: {
@@ -692,11 +731,26 @@ private struct SettingsTab: View {
         .sheet(isPresented: $showPrompt) {
             PromptEditorSheet(profileKey: profileKey)
         }
+        .task { await loadJobs() }
+    }
+
+    private func loadJobs() async {
+        do {
+            jobs = try await CVProfileService.fetchTemplateJobs(for: profileKey)
+            if jobs.isEmpty { jobsMessage = "No jobs found in the template." }
+        } catch {
+            jobsMessage = "Could not load the template's jobs."
+        }
     }
 
     private func save() async {
         isSaving = true
         saveMessage = nil
+        // Only dates that differ from the template are stored, so a later template edit still shows through
+        settings.jobDates = jobs.compactMap { job in
+            let d = job.dates.trimmingCharacters(in: .whitespaces)
+            return d.isEmpty || d == job.templateDates ? nil : JobDate(company: job.company, dates: d)
+        }
         do {
             try await CVProfileService.saveSettings(settings, for: profileKey)
             saveMessage = "Saved"
