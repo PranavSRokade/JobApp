@@ -1,5 +1,4 @@
 import SwiftUI
-import Charts
 import QuickLook
 import UniformTypeIdentifiers
 
@@ -130,13 +129,18 @@ struct ApplicationsView: View {
         }
     }
 
+    // Short on purpose: with nine stages listed inline, the CV items ended up below the fold
     @ViewBuilder
     private func appMenu(for app: Application) -> some View {
-        stageMenu(for: app)
-        Divider()
+        Menu {
+            stageMenu(for: app)
+        } label: {
+            Label("Move to stage", systemImage: "arrow.right.circle")
+        }
         Button { historyJobId = app.id } label: {
             Label("Edit history…", systemImage: "clock.arrow.circlepath")
         }
+        Divider()
         if app.customCV != nil {
             Button { runCV { previewURL = try await store.downloadCV(app.id) } } label: {
                 Label("View CV", systemImage: "doc.text.magnifyingglass")
@@ -223,76 +227,66 @@ private struct ApplicationRow: View {
 
 private struct IdentifiedJob: Identifiable { let id: Int }
 
-// MARK: - Progress chart
+// MARK: - Progress funnel
 
-/// Each application counted once, at the furthest stage it reached, split by how it ended. Answers
-/// "how far do I get before a rejection" without asking for any new data: it reads the history.
+/// How far applications get: each stage counts every application that reached at least that far,
+/// with the share of all applications and how many were rejected there. Stages nobody has reached
+/// collapse into one line. Plain rows rather than a chart, so the names sit beside their numbers.
 private struct StageStatsView: View {
     @ObservedObject var store: ApplicationsStore
     @Environment(\.dismiss) private var dismiss
 
-    private struct Bar: Identifiable {
-        let stage: String
-        let outcome: String
-        let count: Int
-        var id: String { "\(stage)|\(outcome)" }
+    private struct Row: Identifiable {
+        let stage: ApplicationStage
+        let reached: Int
+        let endedHere: Int
+        var id: String { stage.id }
     }
 
     private var progressStages: [ApplicationStage] { store.stages.filter { !store.isTerminal($0.id) } }
 
-    private func outcome(_ app: Application) -> String {
-        store.isTerminal(app.stageId) ? store.stageName(app.stageId) : "Still active"
-    }
-
-    private var bars: [Bar] {
-        var counts: [String: [String: Int]] = [:]
-        for app in store.applications {
-            guard let stage = store.furthestStage(app) else { continue }
-            counts[stage.id, default: [:]][outcome(app), default: 0] += 1
-        }
-        return progressStages.flatMap { stage in
-            (counts[stage.id] ?? [:]).sorted { $0.key < $1.key }.map { Bar(stage: stage.name, outcome: $0.key, count: $0.value) }
+    private var rows: [Row] {
+        let order = Dictionary(uniqueKeysWithValues: progressStages.enumerated().map { ($1.id, $0) })
+        let furthest = store.applications.map { app in (app, store.furthestStage(app).flatMap { order[$0.id] } ?? 0) }
+        return progressStages.enumerated().map { i, stage in
+            Row(
+                stage: stage,
+                reached: furthest.filter { $0.1 >= i }.count,
+                endedHere: furthest.filter { $0.1 == i && store.isTerminal($0.0.stageId) }.count
+            )
         }
     }
 
-    private func total(_ stage: ApplicationStage) -> Int {
-        store.applications.filter { store.furthestStage($0)?.id == stage.id }.count
-    }
-
-    private func ended(_ stage: ApplicationStage) -> Int {
-        store.applications.filter { store.furthestStage($0)?.id == stage.id && store.isTerminal($0.stageId) }.count
-    }
+    private var total: Int { store.applications.count }
+    private var ended: Int { store.applications.filter { store.isTerminal($0.stageId) }.count }
 
     var body: some View {
+        let all = rows
+        let reached = all.filter { $0.reached > 0 }
+        let notYet = all.filter { $0.reached == 0 }.map(\.stage.name)
         NavigationStack {
             List {
                 Section {
-                    Chart(bars) { bar in
-                        BarMark(
-                            x: .value("Applications", bar.count),
-                            y: .value("Furthest stage", bar.stage)
-                        )
-                        .foregroundStyle(by: .value("Outcome", bar.outcome))
+                    HStack(spacing: 0) {
+                        stat("\(total)", "applied")
+                        stat("\(total - ended)", "waiting")
+                        stat("\(ended)", "ended")
                     }
-                    .chartYScale(domain: progressStages.map(\.name))
-                    .chartXAxis { AxisMarks(values: .automatic(desiredCount: 4)) }
-                    .chartLegend(position: .bottom)
-                    .frame(height: CGFloat(max(progressStages.count, 1)) * 34 + 50)
-                    .padding(.vertical, 6)
-                } footer: {
-                    Text("Each application counts once, at the furthest stage it reached. A wrong step can be removed with Edit history on the Applied list.")
+                    .padding(.vertical, 4)
                 }
-                Section("By stage") {
-                    ForEach(progressStages) { stage in
-                        HStack {
-                            Text(stage.name).font(.system(size: 14))
-                            Spacer()
-                            let n = total(stage), out = ended(stage)
-                            Text(n == 0 ? "–" : out == 0 ? "\(n)" : "\(n) · \(out) ended here")
-                                .font(.system(size: 13))
-                                .foregroundColor(.secondary)
-                        }
+                Section {
+                    ForEach(reached) { row in
+                        FunnelRow(name: row.stage.name, reached: row.reached, total: max(total, 1), endedHere: row.endedHere)
                     }
+                    if !notYet.isEmpty {
+                        Text("Not reached yet: \(notYet.joined(separator: ", "))")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                } header: {
+                    Text("How far applications get")
+                } footer: {
+                    Text("Each stage counts every application that got at least that far. A wrong step can be removed with Edit history.")
                 }
             }
             .listStyle(.insetGrouped)
@@ -302,6 +296,52 @@ private struct StageStatsView: View {
                 ToolbarItem(placement: .navigationBarLeading) { Button("Done") { dismiss() } }
             }
         }
+    }
+
+    private func stat(_ value: String, _ label: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value).font(.system(size: 22, weight: .bold, design: .rounded))
+            Text(label).font(.caption).foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+private struct FunnelRow: View {
+    let name: String
+    let reached: Int
+    let total: Int
+    let endedHere: Int
+
+    private var share: Double { Double(reached) / Double(total) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(name).font(.system(size: 15, weight: .semibold))
+                Spacer()
+                Text("\(reached)").font(.system(size: 15, weight: .semibold)).monospacedDigit()
+                Text(share.formatted(.percent.precision(.fractionLength(0))))
+                    .font(.system(size: 13))
+                    .foregroundColor(.secondary)
+                    .monospacedDigit()
+                    .frame(width: 44, alignment: .trailing)
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.secondary.opacity(0.15))
+                    Capsule().fill(Color.indigo).frame(width: max(6, geo.size.width * share))
+                }
+            }
+            .frame(height: 8)
+            if endedHere > 0 {
+                Text("\(endedHere) rejected or withdrawn at this stage")
+                    .font(.caption)
+                    .foregroundColor(.red.opacity(0.85))
+            }
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
     }
 }
 

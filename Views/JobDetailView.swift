@@ -1,4 +1,6 @@
 import SwiftUI
+import QuickLook
+import UniformTypeIdentifiers
 
 struct JobDetailView: View {
     let job: Job
@@ -27,6 +29,11 @@ struct JobDetailView: View {
     @State private var showSponsorDetails = false
     // Recruiter contact emails found in the JD text (plain regex, no AI)
     @State private var contactEmails: [String] = []
+    // The CV you actually sent, uploaded from Files (stored on the worker)
+    @State private var showCVImporter = false
+    @State private var sentCVPreview: URL? = nil
+    @State private var sentCVBusy = false
+    @State private var sentCVError: String? = nil
 
     private var isStarred: Bool { starredStore.isStarred(job.jobId) }
     private var isApplied: Bool { applicationsStore.application(for: job.jobId) != nil }
@@ -318,6 +325,18 @@ struct JobDetailView: View {
                               canEdit: !isApplied)
             }
         }
+        .fileImporter(isPresented: $showCVImporter, allowedContentTypes: [.pdf]) { result in
+            switch result {
+            case .success(let url): runSentCV { try await applicationsStore.attachCV(job.jobId, from: url) }
+            case .failure(let error): sentCVError = error.localizedDescription
+            }
+        }
+        .quickLookPreview($sentCVPreview)
+        .alert("CV", isPresented: Binding(get: { sentCVError != nil }, set: { if !$0 { sentCVError = nil } })) {
+            Button("OK", role: .cancel) { sentCVError = nil }
+        } message: {
+            Text(sentCVError ?? "")
+        }
         .sheet(isPresented: $showAnswer) {
             if let jd = effectiveJD {
                 AnswerSheet(jd: jd, company: job.company, title: job.title, latex: CVCacheStore.load(for: job.jobId)?.latex, profile: profile)
@@ -341,14 +360,20 @@ struct JobDetailView: View {
 
     /// After applying, the cached CV and cover letter are the record of what went out: open them read-only.
     private var sentDocumentsBlock: some View {
-        let hasCV = CVCacheStore.exists(for: job.jobId)
+        // A CV you uploaded is the one you sent, so it takes over View CV from the generated one
+        let uploaded = applicationsStore.application(for: job.jobId)?.customCV
+        let hasCV = uploaded != nil || CVCacheStore.exists(for: job.jobId)
         let hasLetter = CoverLetterCacheStore.exists(for: job.jobId)
         return VStack(alignment: .leading, spacing: 8) {
             Text("Sent with this application")
                 .font(.headline)
             HStack(spacing: 10) {
                 Button {
-                    cvResult = CVCacheStore.load(for: job.jobId)
+                    if uploaded != nil {
+                        runSentCV { sentCVPreview = try await applicationsStore.downloadCV(job.jobId) }
+                    } else {
+                        cvResult = CVCacheStore.load(for: job.jobId)
+                    }
                 } label: {
                     Label(hasCV ? "View CV" : "No CV saved", systemImage: "doc.text.fill")
                         .lineLimit(1)
@@ -375,11 +400,65 @@ struct JobDetailView: View {
                 }
                 .disabled(!hasLetter)
             }
-            if !hasCV && !hasLetter {
+            if !hasCV && !hasLetter && uploaded == nil {
                 Text("Nothing was generated for this job before you applied.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
+            uploadedCVRow
+        }
+    }
+
+    @ViewBuilder
+    private var uploadedCVRow: some View {
+        if let cv = applicationsStore.application(for: job.jobId)?.customCV {
+            // View CV above opens this file; here it's only named, with replace and remove
+            HStack(spacing: 6) {
+                if sentCVBusy {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: "doc.richtext.fill").foregroundColor(.indigo)
+                }
+                Text("Your CV: \(cv.name)")
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer()
+                Menu {
+                    Button { showCVImporter = true } label: { Label("Replace…", systemImage: "doc.badge.plus") }
+                    Button(role: .destructive) {
+                        runSentCV { try await applicationsStore.removeCV(job.jobId) }
+                    } label: { Label("Remove, use the generated CV", systemImage: "trash") }
+                } label: {
+                    Text("Change").fontWeight(.semibold)
+                }
+                .disabled(sentCVBusy)
+            }
+            .font(.caption)
+            .foregroundColor(.secondary)
+        } else {
+            Button { showCVImporter = true } label: {
+                Group {
+                    if sentCVBusy {
+                        ProgressView()
+                    } else {
+                        Label(CVCacheStore.exists(for: job.jobId) ? "Replace with the CV you sent" : "Attach the CV you sent", systemImage: "doc.badge.plus")
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.indigo.opacity(0.15))
+                .foregroundColor(.indigo)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            .disabled(sentCVBusy)
+        }
+    }
+
+    private func runSentCV(_ work: @escaping () async throws -> Void) {
+        Task {
+            sentCVBusy = true
+            do { try await work() } catch { sentCVError = error.localizedDescription }
+            sentCVBusy = false
         }
     }
 
