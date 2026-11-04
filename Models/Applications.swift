@@ -18,6 +18,13 @@ struct StatusChange: Codable, Identifiable {
     private enum CodingKeys: String, CodingKey { case stageId, at }
 }
 
+/// A PDF you sent with an application. The bytes live on the worker; this is what the list shows.
+struct AttachedCV: Codable, Equatable {
+    var name: String
+    var uploadedAt: Date
+    var bytes: Int
+}
+
 /// A job you applied to. Holds a snapshot of the job so it stays viewable even after the sheet
 /// tab it came from is deleted — the tracker is independent of whatever sheet is loaded.
 struct Application: Codable, Identifiable {
@@ -30,6 +37,7 @@ struct Application: Codable, Identifiable {
     var applicantsAtFetch: String?   // LinkedIn caption when the job was scraped
     var applicantsAtApply: String?   // LinkedIn caption fetched when you marked it applied
     var history: [StatusChange]
+    var customCV: AttachedCV?        // the CV actually sent, uploaded from Files (PDF in the worker's KV)
 
     var id: Int { job.jobId }
 
@@ -57,6 +65,17 @@ struct Application: Codable, Identifiable {
         case let (a?, _): return "\(a) applicants"
         case let (nil, b?): return "\(b) applicants when applied"
         default: return nil
+        }
+    }
+}
+
+enum CVUploadError: LocalizedError {
+    case tooLarge, rejected, missing
+    var errorDescription: String? {
+        switch self {
+        case .tooLarge: return "That PDF is over 5 MB."
+        case .rejected: return "The server didn't accept the file. Is it a PDF?"
+        case .missing: return "No CV is saved for this application."
         }
     }
 }
@@ -143,9 +162,80 @@ final class ApplicationsStore: ObservableObject {
         persist()
     }
 
+    /// Drops one step a mis-tap added. The application moves to whatever stage is then last.
+    func removeHistoryStep(_ jobId: Int, at index: Int) {
+        guard let i = applications.firstIndex(where: { $0.id == jobId }),
+              applications[i].history.count > 1, applications[i].history.indices.contains(index) else { return }
+        applications[i].history.remove(at: index)
+        applications[i].stageId = applications[i].history.last!.stageId
+        persist()
+    }
+
+    // MARK: Progress
+
+    /// Stages that end an application rather than move it forward. Stages are user-editable, so the
+    /// built-in ids are matched and renamed or added ones are caught by name.
+    func isTerminal(_ stageId: String) -> Bool {
+        if stageId == "rejected" || stageId == "withdrawn" { return true }
+        let name = stageName(stageId).lowercased()
+        return name.hasPrefix("reject") || name.hasPrefix("withdr")
+    }
+
+    /// The furthest forward stage an application ever reached, by the order of the stages list
+    func furthestStage(_ app: Application) -> ApplicationStage? {
+        let progress = stages.filter { !isTerminal($0.id) }
+        let reached = Set(app.history.map(\.stageId) + [app.stageId])
+        return progress.last { reached.contains($0.id) } ?? progress.first
+    }
+
     func setNotes(_ jobId: Int, notes: String) {
         guard let i = applications.firstIndex(where: { $0.id == jobId }) else { return }
         applications[i].notes = notes
+        persist()
+    }
+
+    // MARK: Uploaded CVs
+
+    private var cvEndpoint: String { "https://job-worker.pranavrokade.workers.dev/api/applications/cv" }
+
+    func attachCV(_ jobId: Int, from fileURL: URL) async throws {
+        let scoped = fileURL.startAccessingSecurityScopedResource()
+        defer { if scoped { fileURL.stopAccessingSecurityScopedResource() } }
+        let data = try Data(contentsOf: fileURL)
+        guard data.count <= 5 * 1024 * 1024 else { throw CVUploadError.tooLarge }
+        guard let url = URL(string: "\(cvEndpoint)?profile=\(profile)&jobId=\(jobId)") else { return }
+        var req = URLRequest(url: url)
+        req.httpMethod = "PUT"
+        req.setValue("application/pdf", forHTTPHeaderField: "Content-Type")
+        req.timeoutInterval = 60
+        let (_, response) = try await URLSession.shared.upload(for: req, from: data)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw CVUploadError.rejected }
+        guard let i = applications.firstIndex(where: { $0.id == jobId }) else { return }
+        applications[i].customCV = AttachedCV(name: fileURL.lastPathComponent, uploadedAt: Date(), bytes: data.count)
+        persist()
+    }
+
+    /// Downloads the uploaded PDF to a temporary file named after the original, for Quick Look
+    func downloadCV(_ jobId: Int) async throws -> URL {
+        guard let app = application(for: jobId), let cv = app.customCV,
+              let url = URL(string: "\(cvEndpoint)?profile=\(profile)&jobId=\(jobId)") else { throw CVUploadError.missing }
+        let (data, response) = try await URLSession.shared.data(from: url)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw CVUploadError.missing }
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("AppliedCVs", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let file = dir.appendingPathComponent(cv.name.hasSuffix(".pdf") ? cv.name : "\(cv.name).pdf")
+        try data.write(to: file, options: .atomic)
+        return file
+    }
+
+    func removeCV(_ jobId: Int) async throws {
+        guard let url = URL(string: "\(cvEndpoint)?profile=\(profile)&jobId=\(jobId)") else { return }
+        var req = URLRequest(url: url)
+        req.httpMethod = "DELETE"
+        let (_, response) = try await URLSession.shared.data(for: req)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw CVUploadError.rejected }
+        guard let i = applications.firstIndex(where: { $0.id == jobId }) else { return }
+        applications[i].customCV = nil
         persist()
     }
 
