@@ -64,9 +64,11 @@ enum JobSortMode: String, CaseIterable, Identifiable {
 
 @MainActor
 final class JobsViewModel: ObservableObject {
-    // Each market is a real, independent list; both load in parallel at launch.
+    // Each market is a real, independent list; all load in parallel at launch.
+    // "ww" is Remote: remote roles anywhere, from the sheet's "WW_" tabs.
     let uk: RegionJobsModel
     let us: RegionJobsModel
+    let ww: RegionJobsModel
 
     // Which market tab is showing. Remembered per profile.
     @Published var region: String = UserDefaults.standard.string(forKey: "region_\(activeProfile)") ?? "uk" {
@@ -75,7 +77,7 @@ final class JobsViewModel: ObservableObject {
             UserDefaults.standard.set(region, forKey: "region_\(activeProfile)")
         }
     }
-    var active: RegionJobsModel { region == "us" ? us : uk }
+    var active: RegionJobsModel { region == "us" ? us : region == "ww" ? ww : uk }
 
     let selectedProfile = activeProfile
     @Published var starredStore: StarredJobsStore = StarredJobsStore(profile: activeProfile)
@@ -153,7 +155,8 @@ final class JobsViewModel: ObservableObject {
     func loadAll() async {
         async let ukLoad: Void = uk.load()
         async let usLoad: Void = us.load()
-        _ = await (ukLoad, usLoad)
+        async let wwLoad: Void = ww.load()
+        _ = await (ukLoad, usLoad, wwLoad)
     }
 
     func deleteSheet(_ sheet: String) async {
@@ -185,6 +188,7 @@ final class JobsViewModel: ObservableObject {
     init() {
         uk = RegionJobsModel(region: "uk", profile: activeProfile)
         us = RegionJobsModel(region: "us", profile: activeProfile)
+        ww = RegionJobsModel(region: "ww", profile: activeProfile)
         loadJobSheetMap()
 
         let record: (String?, [Job]) -> Void = { [weak self] sheet, jobs in
@@ -192,10 +196,12 @@ final class JobsViewModel: ObservableObject {
         }
         uk.onLoaded = record
         us.onLoaded = record
+        ww.onLoaded = record
 
-        // Re-render when either market or the applications tracker changes
+        // Re-render when any market or the applications tracker changes
         uk.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &cancellables)
         us.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &cancellables)
+        ww.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &cancellables)
         applicationsStore.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &cancellables)
 
         subscribeToFilters()

@@ -41,7 +41,7 @@ private enum FeedSeenStore {
     }
 }
 
-/// UK and USA feeds as swipeable pages under the same underline tabs as the Jobs tab.
+/// UK, USA and Remote feeds as swipeable pages under the same underline tabs as the Jobs tab.
 struct FeedView: View {
     @ObservedObject var starredStore: StarredJobsStore
     @ObservedObject var applicationsStore: ApplicationsStore
@@ -57,6 +57,9 @@ struct FeedView: View {
                 FeedPage(starredStore: starredStore, applicationsStore: applicationsStore,
                          profile: profile, region: "us")
                     .tag("us")
+                FeedPage(starredStore: starredStore, applicationsStore: applicationsStore,
+                         profile: profile, region: "ww")
+                    .tag("ww")
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
             .safeAreaInset(edge: .top, spacing: 0) {
@@ -134,16 +137,24 @@ private struct FeedPage: View {
     }
 
     private var metaRow: some View {
-        HStack(spacing: 6) {
-            Text("\(jobs.count) fresh")
-                .foregroundColor(.primary)
-            if !newIds.isEmpty {
-                Text("· \(newIds.count) new")
-                    .foregroundColor(.green)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Text("\(jobs.count) fresh")
+                    .foregroundColor(.primary)
+                if !newIds.isEmpty {
+                    Text("· \(newIds.count) new")
+                        .foregroundColor(.green)
+                }
+                Spacer()
+                if failures > 0 {
+                    Text("\(failures)/\(searches) rate-limited")
+                        .foregroundColor(.secondary)
+                }
             }
-            Spacer()
-            if failures > 0 {
-                Text("\(failures)/\(searches) rate-limited")
+            // The live feed never reads a description, and LinkedIn's "remote" search returns
+            // office roles too. Only the nightly run checks, before a job reaches the Jobs tab.
+            if region == "ww" {
+                Text("Searched with \"remote\", not checked. About half are truly remote.")
                     .foregroundColor(.secondary)
             }
         }

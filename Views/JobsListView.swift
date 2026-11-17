@@ -16,11 +16,12 @@ struct JobsListView: View {
 
     var body: some View {
         NavigationStack {
-            // UK and USA are real, independent pages: swipe between them (or tap the tabs)
+            // UK, USA and Remote are real, independent pages: swipe between them (or tap the tabs)
             // and each keeps its own data and scroll position — no reload flash.
             TabView(selection: $vm.region) {
                 regionPage(vm.uk).tag("uk")
                 regionPage(vm.us).tag("us")
+                regionPage(vm.ww).tag("ww")
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
             .safeAreaInset(edge: .top, spacing: 0) {
@@ -145,7 +146,9 @@ struct JobsListView: View {
                 ContentUnavailableView(
                     "No jobs yet",
                     systemImage: "tray",
-                    description: Text("Nothing has been scraped for \(model.region == "us" ? "the USA" : "the UK") yet")
+                    description: Text(model.region == "ww"
+                                      ? "No remote roles saved yet. The nightly run adds them."
+                                      : "Nothing has been scraped for \(model.region == "us" ? "the USA" : "the UK") yet")
                 )
             } else {
                 List(filtered) { job in
@@ -204,7 +207,7 @@ struct MarketTabs: View {
     @Binding var region: String
     @Namespace private var ns
 
-    private let options: [(tag: String, label: String)] = [("uk", "UK"), ("us", "USA")]
+    private let options: [(tag: String, label: String)] = [("uk", "UK"), ("us", "USA"), ("ww", "Remote")]
 
     var body: some View {
         VStack(spacing: 0) {
