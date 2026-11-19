@@ -17,6 +17,7 @@ struct ApplicationsView: View {
     @State private var previewURL: URL? = nil
     @State private var cvBusy = false
     @State private var cvError: String? = nil
+    @State private var showAdd = false
 
     private var query: String { searchText.trimmingCharacters(in: .whitespaces) }
 
@@ -85,6 +86,9 @@ struct ApplicationsView: View {
                     if cvBusy { ProgressView() }
                 }
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
+                    Button { showAdd = true } label: {
+                        Label("Add application", systemImage: "plus")
+                    }
                     Button { showStats = true } label: {
                         Label("Progress", systemImage: "chart.bar.xaxis")
                     }
@@ -100,6 +104,9 @@ struct ApplicationsView: View {
             }
             .sheet(isPresented: $showStats) {
                 StageStatsView(store: store)
+            }
+            .sheet(isPresented: $showAdd) {
+                AddApplicationView(store: store, profile: profile)
             }
             .sheet(item: Binding(get: { historyJobId.map(IdentifiedJob.init) }, set: { historyJobId = $0?.id })) { item in
                 HistoryEditorView(store: store, jobId: item.id)
@@ -184,7 +191,7 @@ private struct ApplicationRow: View {
             Text(app.job.title)
                 .font(.system(size: 15, weight: .semibold))
                 .lineLimit(2)
-            Text("\(app.job.company) · \(app.job.location)")
+            Text(app.job.location.isEmpty ? app.job.company : "\(app.job.company) · \(app.job.location)")
                 .font(.system(size: 13))
                 .foregroundColor(.secondary)
                 .lineLimit(1)
@@ -192,6 +199,18 @@ private struct ApplicationRow: View {
                 Text(app.appliedAgoText)
                     .font(.system(size: 12))
                     .foregroundColor(app.daysSinceApplied >= 14 ? .orange : .secondary)
+                if let chance = app.shortlistChance {
+                    Text("\(chance)/10")
+                        .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                        .foregroundColor(ShortlistChance.color(chance))
+                        .accessibilityLabel("Shortlist guess \(chance) out of 10")
+                }
+                if app.isCustom {
+                    Image(systemName: "hand.point.up.left.fill")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .accessibilityLabel("Added by hand")
+                }
                 if app.customCV != nil {
                     Image(systemName: "doc.text.fill")
                         .font(.system(size: 11))
@@ -288,6 +307,7 @@ private struct StageStatsView: View {
                 } footer: {
                     Text("Each stage counts every application that got at least that far. A wrong step can be removed with Edit history.")
                 }
+                GuessesSection(store: store)
             }
             .listStyle(.insetGrouped)
             .navigationTitle("Progress")
@@ -465,5 +485,312 @@ private struct StagesEditorView: View {
                 Button("Cancel", role: .cancel) { renaming = nil }
             }
         }
+    }
+}
+
+// MARK: - Shortlist guess
+
+/// "How likely is a shortlist?" asked right after applying, 0–10. A light tick on every step while
+/// sliding and a firmer one at either end, so it can be set by feel. The guesses feed Progress.
+struct ShortlistChanceSheet: View {
+    let title: String
+    let company: String
+    let onSave: (Int) -> Void
+    @State private var value: Double
+    @Environment(\.dismiss) private var dismiss
+    private let ticks = UISelectionFeedbackGenerator()
+    private let ends = UIImpactFeedbackGenerator(style: .medium)
+
+    init(title: String, company: String, initial: Int?, onSave: @escaping (Int) -> Void) {
+        self.title = title
+        self.company = company
+        self.onSave = onSave
+        _value = State(initialValue: Double(initial ?? 5))
+    }
+
+    private var chance: Int { Int(value.rounded()) }
+
+    var body: some View {
+        VStack(spacing: 18) {
+            VStack(spacing: 4) {
+                Text("Chance of a shortlist?").font(.headline)
+                Text("\(title) · \(company)")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+            }
+            VStack(spacing: 2) {
+                HStack(alignment: .firstTextBaseline, spacing: 2) {
+                    Text("\(chance)")
+                        .font(.system(size: 56, weight: .bold, design: .rounded))
+                        .contentTransition(.numericText(value: value))
+                    Text("/10").font(.title3.weight(.semibold)).foregroundColor(.secondary)
+                }
+                .foregroundColor(ShortlistChance.color(chance))
+                Text(ShortlistChance.label(chance))
+                    .font(.subheadline.weight(.medium))
+                    .foregroundColor(.secondary)
+            }
+            .animation(.snappy(duration: 0.15), value: chance)
+            VStack(spacing: 6) {
+                Slider(value: $value, in: 0...10, step: 1)
+                    .tint(ShortlistChance.color(chance))
+                HStack {
+                    ForEach(0...10, id: \.self) { n in
+                        Text("\(n)")
+                            .font(.caption2.monospacedDigit())
+                            .foregroundColor(n == chance ? .primary : .secondary)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+            }
+            .onChange(of: chance) { _, new in
+                if new == 0 || new == 10 { ends.impactOccurred() } else { ticks.selectionChanged() }
+            }
+            HStack(spacing: 12) {
+                Button("Skip") { dismiss() }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color.secondary.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                Button {
+                    onSave(chance)
+                    dismiss()
+                } label: {
+                    Text("Save").fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color.indigo)
+                        .foregroundColor(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+            }
+        }
+        .padding(20)
+        .onAppear { ticks.prepare(); ends.prepare() }
+        .presentationDetents([.height(380)])
+        .presentationDragIndicator(.visible)
+    }
+}
+
+enum ShortlistChance {
+    static func label(_ n: Int) -> String {
+        switch n {
+        case ...2: return "Long shot"
+        case 3...4: return "Unlikely"
+        case 5...6: return "Decent"
+        case 7...8: return "Strong"
+        default: return "Very likely"
+        }
+    }
+
+    static func color(_ n: Int) -> Color {
+        switch n {
+        case ...3: return .red
+        case 4...6: return .orange
+        default: return .green
+        }
+    }
+}
+
+// MARK: - Add an application by hand
+
+/// A job applied to outside the scraped sheets (a company site, a referral, an email). Optionally
+/// makes a quick CV from the pasted description and attaches it as the CV sent, then asks for the
+/// shortlist guess like any other application.
+struct AddApplicationView: View {
+    @ObservedObject var store: ApplicationsStore
+    let profile: String
+    @Environment(\.dismiss) private var dismiss
+    @State private var title = ""
+    @State private var company = ""
+    @State private var link = ""
+    @State private var location = ""
+    @State private var jd = ""
+    @State private var makeCV = true
+    @State private var saving = false
+    @State private var error: String?
+    @State private var added: Job?
+
+    private func trimmed(_ s: String) -> String { s.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var hasJD: Bool { !trimmed(jd).isEmpty }
+    private var canSave: Bool { !trimmed(title).isEmpty && !trimmed(company).isEmpty && !saving && added == nil }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Job") {
+                    TextField("Role", text: $title)
+                    TextField("Company", text: $company)
+                    TextField("Link (optional)", text: $link)
+                        .keyboardType(.URL)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    TextField("Location (optional)", text: $location)
+                }
+                Section {
+                    TextEditor(text: $jd).frame(minHeight: 160)
+                    Toggle("Make a quick CV and attach it", isOn: $makeCV).disabled(!hasJD)
+                } header: {
+                    Text("Job description")
+                } footer: {
+                    Text(hasJD ? "The CV is built from this description and saved as the CV you sent. Open it from the application."
+                               : "Paste the description to make a quick CV. You can also attach your own PDF later.")
+                }
+                if let error {
+                    Section { Text(error).font(.footnote).foregroundColor(.red) }
+                }
+            }
+            .navigationTitle("Add application")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") { dismiss() }.disabled(saving)
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    if saving {
+                        ProgressView()
+                    } else {
+                        Button("Save", action: save).fontWeight(.semibold).disabled(!canSave)
+                    }
+                }
+            }
+            .interactiveDismissDisabled(saving)
+            .sheet(item: $added, onDismiss: { dismiss() }) { job in
+                ShortlistChanceSheet(title: job.title, company: job.company, initial: nil) {
+                    store.setShortlistChance(job.jobId, $0)
+                }
+            }
+        }
+    }
+
+    private func save() {
+        let job = store.addCustom(
+            title: trimmed(title), company: trimmed(company), link: trimmed(link),
+            location: trimmed(location), jd: hasJD ? trimmed(jd) : nil
+        )
+        guard makeCV && hasJD else { added = job; return }
+        saving = true
+        Task {
+            do {
+                let result = try await CVService.generateCV(jd: trimmed(jd), profile: profile)
+                let name = resumeFileName(title: job.title, company: job.company, location: job.location.isEmpty ? nil : job.location)
+                try await store.attachCV(job.jobId, data: result.pdfData, name: name.hasSuffix(".pdf") ? name : "\(name).pdf")
+            } catch {
+                // The application is saved either way; only the CV is missing
+                self.error = "Saved, but the CV failed: \(error.localizedDescription)"
+                saving = false
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+            }
+            saving = false
+            added = job
+        }
+    }
+}
+
+// MARK: - Shortlist guesses vs what happened
+
+/// Your 0–10 guesses grouped into three bands, each with how many were actually shortlisted
+/// (reached any stage after the first). Shows whether your gut is calibrated, and so which kinds
+/// of applications deserve the extra effort.
+private struct GuessesSection: View {
+    @ObservedObject var store: ApplicationsStore
+
+    struct Band: Identifiable {
+        let name: String
+        let range: ClosedRange<Int>
+        var total = 0
+        var shortlisted = 0
+        var waiting = 0
+        var id: String { name }
+    }
+
+    private func shortlisted(_ app: Application) -> Bool {
+        let progress = store.stages.filter { !store.isTerminal($0.id) }
+        guard let furthest = store.furthestStage(app), let i = progress.firstIndex(where: { $0.id == furthest.id }) else { return false }
+        return i >= 1
+    }
+
+    private var guessed: [Application] { store.applications.filter { $0.shortlistChance != nil } }
+
+    private var bands: [Band] {
+        var out = [Band(name: "0–3 long shots", range: 0...3), Band(name: "4–6 decent", range: 4...6), Band(name: "7–10 strong", range: 7...10)]
+        for app in guessed {
+            guard let c = app.shortlistChance, let i = out.firstIndex(where: { $0.range.contains(c) }) else { continue }
+            out[i].total += 1
+            if shortlisted(app) { out[i].shortlisted += 1 } else if !store.isTerminal(app.stageId) { out[i].waiting += 1 }
+        }
+        return out
+    }
+
+    var body: some View {
+        let apps = guessed
+        Section {
+            if apps.isEmpty {
+                Text("No guesses yet. After you mark a job applied, rate your chance of a shortlist out of 10.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            } else {
+                let avg = Double(apps.compactMap(\.shortlistChance).reduce(0, +)) / Double(apps.count)
+                let hits = apps.filter(shortlisted).count
+                let decided = apps.filter { shortlisted($0) || store.isTerminal($0.stageId) }.count
+                HStack(spacing: 0) {
+                    stat(avg.formatted(.number.precision(.fractionLength(1))), "average guess")
+                    stat(decided == 0 ? "–" : (Double(hits) / Double(decided)).formatted(.percent.precision(.fractionLength(0))), "shortlisted")
+                    stat("\(apps.count - decided)", "waiting")
+                }
+                .padding(.vertical, 4)
+                ForEach(bands.filter { $0.total > 0 }) { band in
+                    GuessBandRow(band: band)
+                }
+            }
+        } header: {
+            Text("Your shortlist guesses")
+        } footer: {
+            Text("Shortlisted means it reached any stage after the first. The rate counts only applications with an answer, so a band full of waiting ones says little yet. An average guess of 6 should mean about 60% shortlisted.")
+        }
+    }
+
+    private func stat(_ value: String, _ label: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value).font(.system(size: 22, weight: .bold, design: .rounded))
+            Text(label).font(.caption).foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+private struct GuessBandRow: View {
+    let band: GuessesSection.Band
+
+    private var decided: Int { band.total - band.waiting }
+    private var rate: Double { decided == 0 ? 0 : Double(band.shortlisted) / Double(decided) }
+    private var color: Color { ShortlistChance.color(band.range.upperBound) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(band.name).font(.system(size: 15, weight: .semibold))
+                Spacer()
+                Text("\(band.shortlisted) of \(band.total) shortlisted")
+                    .font(.system(size: 13))
+                    .foregroundColor(.secondary)
+                    .monospacedDigit()
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.secondary.opacity(0.15))
+                    Capsule().fill(color).frame(width: max(6, geo.size.width * rate))
+                }
+            }
+            .frame(height: 8)
+            if band.waiting > 0 {
+                Text("\(band.waiting) still waiting")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
     }
 }

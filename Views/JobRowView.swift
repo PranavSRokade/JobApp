@@ -124,7 +124,7 @@ struct JobRowView: View {
         .padding(.vertical, 6)
         .swipeActions(edge: .leading, allowsFullSwipe: true) {
             Button {
-                starredStore.toggle(job, region: region)
+                starredStore.toggle(job, region: region, remind: !isApplied)
             } label: {
                 Label(isStarred ? "Unstar" : "Star", systemImage: isStarred ? "star.slash.fill" : "star.fill")
             }

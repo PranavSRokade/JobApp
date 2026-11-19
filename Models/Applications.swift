@@ -38,8 +38,12 @@ struct Application: Codable, Identifiable {
     var applicantsAtApply: String?   // LinkedIn caption fetched when you marked it applied
     var history: [StatusChange]
     var customCV: AttachedCV?        // the CV actually sent, uploaded from Files (PDF in the worker's KV)
+    var shortlistChance: Int? = nil  // your 0–10 guess, asked right after applying; nil = skipped
 
     var id: Int { job.jobId }
+
+    /// Added by hand from the Applied tab rather than from a scraped sheet
+    var isCustom: Bool { region == ApplicationsStore.customRegion }
 
     var daysSinceApplied: Int {
         let cal = Calendar.current
@@ -138,6 +142,7 @@ final class ApplicationsStore: ObservableObject {
         )
         applications.insert(app, at: 0)
         persist()
+        StarReminders.cancel(job.jobId)
 
         // How many had applied at the moment you did — fetched live from the posting
         Task { [weak self] in
@@ -148,6 +153,36 @@ final class ApplicationsStore: ObservableObject {
                 self.persist()
             }
         }
+    }
+
+    func setShortlistChance(_ jobId: Int, _ chance: Int?) {
+        guard let i = applications.firstIndex(where: { $0.id == jobId }) else { return }
+        applications[i].shortlistChance = chance.map { min(10, max(0, $0)) }
+        persist()
+    }
+
+    // MARK: Applications added by hand
+
+    static let customRegion = "custom"
+
+    /// A job applied to outside the scraped sheets. The worker keys uploaded CVs by a numeric job id of
+    /// at most 12 digits; LinkedIn ids are 10 digits, so 9xx,xxx,xxx,xxx can never clash with one.
+    func addCustom(title: String, company: String, link: String, location: String, jd: String?) -> Job {
+        var id = 900_000_000_000 + Int(Date().timeIntervalSince1970)
+        while isApplied(id) { id += 1 }
+        let job = Job(
+            rank: 0, title: title, company: company, jobId: id, link: link, over100: false, age: "",
+            location: location, skills: 0, experience: 0, seniority: 0, locationFit: 0, companySize: 0,
+            scoreSource: "", jd: jd, sponsorship: nil, salary: nil, visaNotes: nil, applicants: nil
+        )
+        let now = Date()
+        let first = stages.first?.id ?? "applied"
+        applications.insert(Application(
+            job: job, region: Self.customRegion, sheet: nil, appliedAt: now, stageId: first, notes: "",
+            applicantsAtFetch: nil, applicantsAtApply: nil, history: [StatusChange(stageId: first, at: now)]
+        ), at: 0)
+        persist()
+        return job
     }
 
     func unmark(_ jobId: Int) {
@@ -201,7 +236,11 @@ final class ApplicationsStore: ObservableObject {
     func attachCV(_ jobId: Int, from fileURL: URL) async throws {
         let scoped = fileURL.startAccessingSecurityScopedResource()
         defer { if scoped { fileURL.stopAccessingSecurityScopedResource() } }
-        let data = try Data(contentsOf: fileURL)
+        try await attachCV(jobId, data: try Data(contentsOf: fileURL), name: fileURL.lastPathComponent)
+    }
+
+    /// Uploads a PDF as the CV sent with this application (a file from Files, or a generated quick CV)
+    func attachCV(_ jobId: Int, data: Data, name: String) async throws {
         guard data.count <= 5 * 1024 * 1024 else { throw CVUploadError.tooLarge }
         guard let url = URL(string: "\(cvEndpoint)?profile=\(profile)&jobId=\(jobId)") else { return }
         var req = URLRequest(url: url)
@@ -211,7 +250,7 @@ final class ApplicationsStore: ObservableObject {
         let (_, response) = try await URLSession.shared.upload(for: req, from: data)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw CVUploadError.rejected }
         guard let i = applications.firstIndex(where: { $0.id == jobId }) else { return }
-        applications[i].customCV = AttachedCV(name: fileURL.lastPathComponent, uploadedAt: Date(), bytes: data.count)
+        applications[i].customCV = AttachedCV(name: name, uploadedAt: Date(), bytes: data.count)
         persist()
     }
 

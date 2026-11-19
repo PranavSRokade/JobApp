@@ -34,6 +34,7 @@ struct JobDetailView: View {
     @State private var sentCVPreview: URL? = nil
     @State private var sentCVBusy = false
     @State private var sentCVError: String? = nil
+    @State private var showShortlist = false
 
     private var isStarred: Bool { starredStore.isStarred(job.jobId) }
     private var isApplied: Bool { applicationsStore.application(for: job.jobId) != nil }
@@ -308,11 +309,17 @@ struct JobDetailView: View {
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
-                    starredStore.toggle(job, region: region)
+                    starredStore.toggle(job, region: region, remind: !isApplied)
                 } label: {
                     Image(systemName: isStarred ? "star.fill" : "star")
                         .foregroundColor(isStarred ? .yellow : .secondary)
                 }
+            }
+        }
+        .sheet(isPresented: $showShortlist) {
+            ShortlistChanceSheet(title: job.title, company: job.company,
+                                 initial: applicationsStore.application(for: job.jobId)?.shortlistChance) {
+                applicationsStore.setShortlistChance(job.jobId, $0)
             }
         }
         .sheet(isPresented: Binding(
@@ -574,6 +581,17 @@ struct JobDetailView: View {
                         .clipShape(Capsule())
                     }
                 }
+                Button { showShortlist = true } label: {
+                    if let chance = app.shortlistChance {
+                        Label("Shortlist guess \(chance)/10 · \(ShortlistChance.label(chance))", systemImage: "gauge.with.dots.needle.50percent")
+                            .foregroundColor(ShortlistChance.color(chance))
+                    } else {
+                        Label("Add a shortlist guess", systemImage: "gauge.with.dots.needle.0percent")
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .font(.caption.weight(.medium))
+                .buttonStyle(.plain)
                 if let summary = applicantsSummary(app) {
                     Label(summary, systemImage: "person.3")
                         .font(.caption)
@@ -596,6 +614,7 @@ struct JobDetailView: View {
         } else {
             Button {
                 applicationsStore.markApplied(job, region: region, sheet: sheetName)
+                showShortlist = true
             } label: {
                 Label("Mark as applied", systemImage: "paperplane")
                     .frame(maxWidth: .infinity)

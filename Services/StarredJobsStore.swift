@@ -1,4 +1,5 @@
 import Foundation
+import UserNotifications
 import Combine
 
 /// A starred job is kept as a full snapshot, so stars work on feed jobs (which aren't in any
@@ -6,6 +7,7 @@ import Combine
 struct StarredSnapshot: Codable {
     let job: Job
     let region: String
+    var starredAt: Date? = nil   // nil for stars saved before reminders existed (Nov 2026)
 }
 
 final class StarredJobsStore: ObservableObject {
@@ -18,13 +20,17 @@ final class StarredJobsStore: ObservableObject {
         load()
     }
 
-    func toggle(_ job: Job, region: String) {
+    /// `remind` is false when the job is already applied to, so starring it doesn't start reminders
+    func toggle(_ job: Job, region: String, remind: Bool = true) {
         if starredIds.contains(job.jobId) {
             starredIds.remove(job.jobId)
             snapshots.removeValue(forKey: job.jobId)
+            StarReminders.cancel(job.jobId)
         } else {
+            let now = Date()
             starredIds.insert(job.jobId)
-            snapshots[job.jobId] = StarredSnapshot(job: job, region: region)
+            snapshots[job.jobId] = StarredSnapshot(job: job, region: region, starredAt: now)
+            if remind { StarReminders.schedule(job, starredAt: now) }
         }
         save()
     }
@@ -55,5 +61,63 @@ final class StarredJobsStore: ObservableObject {
         if let data = try? JSONEncoder().encode(snapshots) {
             UserDefaults.standard.set(data, forKey: snapshotsKey())
         }
+    }
+}
+
+// MARK: - Reminders
+
+/// Local notifications nudging you to apply to a starred job: at 9:00 and 18:00 over the two days
+/// after starring it, four at most. Unstarring or marking it applied cancels the rest. Phone-only,
+/// so they need no server and work on a free signing account.
+enum StarReminders {
+    static let jobIdKey = "starredJobId"
+    private static let hours = [9, 18]
+    private static let window: TimeInterval = 48 * 3600
+    private static let maxReminders = 4
+
+    static func schedule(_ job: Job, starredAt: Date) {
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+            guard granted else { return }
+            for (n, date) in slots(after: starredAt).enumerated() {
+                let content = UNMutableNotificationContent()
+                content.title = "Still starred: \(job.title)"
+                content.body = n == 0
+                    ? "\(job.company). Apply while it's fresh?"
+                    : "\(job.company). You starred this \(ago(starredAt, to: date)). Apply or unstar it."
+                content.sound = .default
+                content.userInfo = [jobIdKey: job.jobId]
+                let parts = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+                let trigger = UNCalendarNotificationTrigger(dateMatching: parts, repeats: false)
+                center.add(UNNotificationRequest(identifier: id(job.jobId, n), content: content, trigger: trigger))
+            }
+        }
+    }
+
+    static func cancel(_ jobId: Int) {
+        let ids = (0..<maxReminders).map { id(jobId, $0) }
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ids)
+        UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: ids)
+    }
+
+    /// The 9:00 and 18:00 slots inside the window, skipping any less than an hour after starring
+    static func slots(after start: Date, calendar: Calendar = .current) -> [Date] {
+        var out: [Date] = []
+        var day = calendar.startOfDay(for: start)
+        while out.count < maxReminders, day < start.addingTimeInterval(window) {
+            for h in hours {
+                guard let d = calendar.date(bySettingHour: h, minute: 0, second: 0, of: day) else { continue }
+                if d >= start.addingTimeInterval(3600), d <= start.addingTimeInterval(window), out.count < maxReminders { out.append(d) }
+            }
+            day = calendar.date(byAdding: .day, value: 1, to: day) ?? day.addingTimeInterval(86400)
+        }
+        return out
+    }
+
+    private static func id(_ jobId: Int, _ n: Int) -> String { "star-\(jobId)-\(n)" }
+
+    private static func ago(_ from: Date, to: Date) -> String {
+        let hours = Int(to.timeIntervalSince(from) / 3600)
+        return hours < 24 ? "\(hours) hours ago" : "yesterday"
     }
 }

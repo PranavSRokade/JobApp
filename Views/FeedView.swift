@@ -112,7 +112,7 @@ private struct FeedPage: View {
                             }
                             .swipeActions(edge: .leading, allowsFullSwipe: true) {
                                 Button {
-                                    starredStore.toggle(job, region: region)
+                                    starredStore.toggle(job, region: region, remind: !applicationsStore.isApplied(job.jobId))
                                 } label: {
                                     Label(starredStore.isStarred(job.jobId) ? "Unstar" : "Star",
                                           systemImage: starredStore.isStarred(job.jobId) ? "star.slash.fill" : "star.fill")
