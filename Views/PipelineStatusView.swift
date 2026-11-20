@@ -165,7 +165,7 @@ struct PipelineStatusView: View {
     private func load() async {
         guard let url = URL(string: "\(base)/status") else { return }
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
+            let (data, _) = try await WorkerAPI.session.data(from: url)
             status = try JSONDecoder().decode(PipelineStatus.self, from: data)
             error = nil
         } catch {
@@ -181,7 +181,7 @@ struct PipelineStatusView: View {
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = Data("{}".utf8)
-        _ = try? await URLSession.shared.data(for: req)
+        _ = try? await WorkerAPI.session.data(for: req)
         await load()
     }
 }

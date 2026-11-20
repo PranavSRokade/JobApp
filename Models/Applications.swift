@@ -247,7 +247,7 @@ final class ApplicationsStore: ObservableObject {
         req.httpMethod = "PUT"
         req.setValue("application/pdf", forHTTPHeaderField: "Content-Type")
         req.timeoutInterval = 60
-        let (_, response) = try await URLSession.shared.upload(for: req, from: data)
+        let (_, response) = try await WorkerAPI.session.upload(for: req, from: data)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw CVUploadError.rejected }
         guard let i = applications.firstIndex(where: { $0.id == jobId }) else { return }
         applications[i].customCV = AttachedCV(name: name, uploadedAt: Date(), bytes: data.count)
@@ -258,7 +258,7 @@ final class ApplicationsStore: ObservableObject {
     func downloadCV(_ jobId: Int) async throws -> URL {
         guard let app = application(for: jobId), let cv = app.customCV,
               let url = URL(string: "\(cvEndpoint)?profile=\(profile)&jobId=\(jobId)") else { throw CVUploadError.missing }
-        let (data, response) = try await URLSession.shared.data(from: url)
+        let (data, response) = try await WorkerAPI.session.data(from: url)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw CVUploadError.missing }
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("AppliedCVs", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -271,7 +271,7 @@ final class ApplicationsStore: ObservableObject {
         guard let url = URL(string: "\(cvEndpoint)?profile=\(profile)&jobId=\(jobId)") else { return }
         var req = URLRequest(url: url)
         req.httpMethod = "DELETE"
-        let (_, response) = try await URLSession.shared.data(for: req)
+        let (_, response) = try await WorkerAPI.session.data(for: req)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw CVUploadError.rejected }
         guard let i = applications.firstIndex(where: { $0.id == jobId }) else { return }
         applications[i].customCV = nil
@@ -317,7 +317,7 @@ final class ApplicationsStore: ObservableObject {
     func refresh() async {
         guard let url = URL(string: "\(endpoint)?profile=\(profile)") else { return }
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
+            let (data, _) = try await WorkerAPI.session.data(from: url)
             let blob = try Self.decoder.decode(Blob.self, from: data)
             // Don't clobber edits made while this request was in flight
             guard !hasLocalChanges else { isLoaded = true; return }
@@ -349,7 +349,7 @@ final class ApplicationsStore: ObservableObject {
         req.httpBody = try? Self.encoder.encode(Blob(stages: stages, applications: applications))
         req.timeoutInterval = 30
         do {
-            let (_, response) = try await URLSession.shared.data(for: req)
+            let (_, response) = try await WorkerAPI.session.data(for: req)
             if (response as? HTTPURLResponse)?.statusCode == 200 {
                 hasLocalChanges = false
                 lastError = nil
@@ -370,7 +370,7 @@ final class ApplicationsStore: ObservableObject {
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try JSONEncoder().encode(Body(url: url))
         req.timeoutInterval = 30
-        let (data, _) = try await URLSession.shared.data(for: req)
+        let (data, _) = try await WorkerAPI.session.data(for: req)
         return try JSONDecoder().decode(Resp.self, from: data).applicants
     }
 

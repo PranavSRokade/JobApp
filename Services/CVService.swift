@@ -105,7 +105,7 @@ struct CVService {
     // The worker caps its own AI + LaTeX work at ~85 s worst case, so a hard 110 s total cap here means a
     // request can never spin forever — it either returns or fails with a readable message.
     private static let session: URLSession = {
-        let config = URLSessionConfiguration.default
+        let config = WorkerAPI.configuration()
         config.timeoutIntervalForRequest = 100
         config.timeoutIntervalForResource = 110
         config.waitsForConnectivity = false

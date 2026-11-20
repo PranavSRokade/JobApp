@@ -17,7 +17,7 @@ private enum FeedService {
         guard let url = comps.url else { throw URLError(.badURL) }
         var req = URLRequest(url: url)
         req.timeoutInterval = 60
-        let (data, response) = try await URLSession.shared.data(for: req)
+        let (data, response) = try await WorkerAPI.session.data(for: req)
         if let http = response as? HTTPURLResponse, http.statusCode != 200 {
             let msg = (try? JSONDecoder().decode([String: String].self, from: data))?["error"]
             throw NSError(domain: "Feed", code: http.statusCode,

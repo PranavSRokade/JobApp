@@ -29,7 +29,7 @@ struct JobsService {
         components.queryItems = queryItems
         guard let url = components.url else { throw JobsServiceError.invalidURL }
 
-        let (data, response) = try await URLSession.shared.data(from: url)
+        let (data, response) = try await WorkerAPI.session.data(from: url)
 
         if let http = response as? HTTPURLResponse, http.statusCode != 200 {
             let body = String(data: data, encoding: .utf8) ?? "Unknown error"
@@ -50,7 +50,7 @@ struct JobsService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(Body(url: url, profile: profile, sheet: sheet, jobId: jobId))
         request.timeoutInterval = 45
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await WorkerAPI.session.data(for: request)
         let decoded = try? JSONDecoder().decode(Resp.self, from: data)
         if let http = response as? HTTPURLResponse, http.statusCode != 200 {
             throw JobsServiceError.server(decoded?.error ?? "Could not fetch the description")
@@ -83,7 +83,7 @@ extension JobsService {
 
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await WorkerAPI.session.data(for: request)
 
         if let http = response as? HTTPURLResponse, http.statusCode != 200 {
             let body = String(data: data, encoding: .utf8) ?? "Unknown error"

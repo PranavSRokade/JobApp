@@ -5,7 +5,7 @@ struct CVProfileService {
 
     static func fetchProfile(for profile: String) async throws -> CVProfile {
         guard let url = URL(string: "\(base)/api/profile?profile=\(profile)") else { throw CVServiceError.decodingError }
-        let (data, _) = try await URLSession.shared.data(from: url)
+        let (data, _) = try await WorkerAPI.session.data(from: url)
         guard let result = try? JSONDecoder().decode(CVProfile.self, from: data) else {
             throw CVServiceError.decodingError
         }
@@ -39,7 +39,7 @@ struct CVProfileService {
     static func fetchTemplateJobs(for profile: String) async throws -> [TemplateJob] {
         struct Resp: Decodable { let jobs: [TemplateJob] }
         guard let url = URL(string: "\(base)/api/profile/jobs?profile=\(profile)") else { throw CVServiceError.decodingError }
-        let (data, _) = try await URLSession.shared.data(from: url)
+        let (data, _) = try await WorkerAPI.session.data(from: url)
         guard let resp = try? JSONDecoder().decode(Resp.self, from: data) else { throw CVServiceError.decodingError }
         return resp.jobs
     }
@@ -55,7 +55,7 @@ struct CVProfileService {
 
     static func fetchPrompt(for profile: String) async throws -> PromptInfo {
         guard let url = URL(string: "\(base)/api/profile/prompt?profile=\(profile)") else { throw CVServiceError.decodingError }
-        let (data, _) = try await URLSession.shared.data(from: url)
+        let (data, _) = try await WorkerAPI.session.data(from: url)
         return try JSONDecoder().decode(PromptInfo.self, from: data)
     }
 
@@ -66,7 +66,7 @@ struct CVProfileService {
         req.setValue("text/plain", forHTTPHeaderField: "Content-Type")
         req.httpBody = text.data(using: .utf8)
         req.timeoutInterval = 30
-        let (data, response) = try await URLSession.shared.data(for: req)
+        let (data, response) = try await WorkerAPI.session.data(for: req)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard status == 200 else {
             let msg = (try? JSONDecoder().decode([String: String].self, from: data))?["error"] ?? "Save failed"
@@ -79,7 +79,7 @@ struct CVProfileService {
         var req = URLRequest(url: url)
         req.httpMethod = "DELETE"
         req.timeoutInterval = 30
-        let (_, response) = try await URLSession.shared.data(for: req)
+        let (_, response) = try await WorkerAPI.session.data(for: req)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw CVServiceError.decodingError }
     }
 
@@ -90,7 +90,7 @@ struct CVProfileService {
         req.setValue("text/plain", forHTTPHeaderField: "Content-Type")
         req.httpBody = tex.data(using: .utf8)
         req.timeoutInterval = 30
-        let (_, response) = try await URLSession.shared.data(for: req)
+        let (_, response) = try await WorkerAPI.session.data(for: req)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw CVServiceError.decodingError }
     }
 
@@ -116,7 +116,7 @@ struct CVProfileService {
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try JSONEncoder().encode(body)
         req.timeoutInterval = 30
-        let (data, _) = try await URLSession.shared.data(for: req)
+        let (data, _) = try await WorkerAPI.session.data(for: req)
         let resp = try JSONDecoder().decode(Resp.self, from: data)
         return (resp.text, resp.bullets)
     }
@@ -130,7 +130,7 @@ struct CVProfileService {
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try JSONEncoder().encode(Body(description: description, company: company, profile: profile))
         req.timeoutInterval = 30
-        let (data, _) = try await URLSession.shared.data(for: req)
+        let (data, _) = try await WorkerAPI.session.data(for: req)
         return (try JSONDecoder().decode(Resp.self, from: data)).bullets
     }
 
@@ -142,7 +142,7 @@ struct CVProfileService {
 
     static func fetchTitleFilters(for profile: String) async throws -> TitleFilters {
         guard let url = URL(string: "\(base)/api/profile/filters?profile=\(profile)") else { throw CVServiceError.decodingError }
-        let (data, _) = try await URLSession.shared.data(from: url)
+        let (data, _) = try await WorkerAPI.session.data(from: url)
         guard let result = try? JSONDecoder().decode(TitleFilters.self, from: data) else { throw CVServiceError.decodingError }
         return result
     }
@@ -153,7 +153,7 @@ struct CVProfileService {
 
     static func fetchDefaultTemplate(for profile: String) async throws -> String {
         guard let url = URL(string: "\(base)/api/profile/default-template?profile=\(profile)") else { throw CVServiceError.decodingError }
-        let (data, _) = try await URLSession.shared.data(from: url)
+        let (data, _) = try await WorkerAPI.session.data(from: url)
         guard let text = String(data: data, encoding: .utf8) else { throw CVServiceError.decodingError }
         return text
     }
@@ -163,7 +163,7 @@ struct CVProfileService {
         var req = URLRequest(url: url)
         req.httpMethod = "DELETE"
         req.timeoutInterval = 30
-        let (_, response) = try await URLSession.shared.data(for: req)
+        let (_, response) = try await WorkerAPI.session.data(for: req)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw CVServiceError.decodingError }
     }
 
@@ -174,7 +174,7 @@ struct CVProfileService {
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try JSONEncoder().encode(body)
         req.timeoutInterval = 30
-        let (data, response) = try await URLSession.shared.data(for: req)
+        let (data, response) = try await WorkerAPI.session.data(for: req)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw CVServiceError.decodingError }
         return data
     }
