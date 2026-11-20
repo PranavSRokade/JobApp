@@ -1,4 +1,5 @@
 import SwiftUI
+import Charts
 import QuickLook
 import UniformTypeIdentifiers
 
@@ -246,66 +247,42 @@ private struct ApplicationRow: View {
 
 private struct IdentifiedJob: Identifiable { let id: Int }
 
-// MARK: - Progress funnel
+// MARK: - Progress
 
-/// How far applications get: each stage counts every application that reached at least that far,
-/// with the share of all applications and how many were rejected there. Stages nobody has reached
-/// collapse into one line. Plain rows rather than a chart, so the names sit beside their numbers.
+/// What happened to every application, in four views: where they all are now, how they flow from
+/// one stage to the next, how each week's batch turned out, and how long the unanswered ones have
+/// waited compared with how fast replies actually come. Then your shortlist guesses against results.
 private struct StageStatsView: View {
     @ObservedObject var store: ApplicationsStore
     @Environment(\.dismiss) private var dismiss
 
-    private struct Row: Identifiable {
-        let stage: ApplicationStage
-        let reached: Int
-        let endedHere: Int
-        var id: String { stage.id }
-    }
-
-    private var progressStages: [ApplicationStage] { store.stages.filter { !store.isTerminal($0.id) } }
-
-    private var rows: [Row] {
-        let order = Dictionary(uniqueKeysWithValues: progressStages.enumerated().map { ($1.id, $0) })
-        let furthest = store.applications.map { app in (app, store.furthestStage(app).flatMap { order[$0.id] } ?? 0) }
-        return progressStages.enumerated().map { i, stage in
-            Row(
-                stage: stage,
-                reached: furthest.filter { $0.1 >= i }.count,
-                endedHere: furthest.filter { $0.1 == i && store.isTerminal($0.0.stageId) }.count
-            )
-        }
-    }
-
-    private var total: Int { store.applications.count }
-    private var ended: Int { store.applications.filter { store.isTerminal($0.stageId) }.count }
-
     var body: some View {
-        let all = rows
-        let reached = all.filter { $0.reached > 0 }
-        let notYet = all.filter { $0.reached == 0 }.map(\.stage.name)
+        let summary = ProgressSummary(store: store)
         NavigationStack {
             List {
                 Section {
-                    HStack(spacing: 0) {
-                        stat("\(total)", "applied")
-                        stat("\(total - ended)", "waiting")
-                        stat("\(ended)", "ended")
-                    }
-                    .padding(.vertical, 4)
+                    OutcomeBar(summary: summary)
+                } header: {
+                    Text("Where they are now")
                 }
                 Section {
-                    ForEach(reached) { row in
-                        FunnelRow(name: row.stage.name, reached: row.reached, total: max(total, 1), endedHere: row.endedHere)
-                    }
-                    if !notYet.isEmpty {
-                        Text("Not reached yet: \(notYet.joined(separator: ", "))")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
+                    FlowView(summary: summary)
                 } header: {
-                    Text("How far applications get")
+                    Text("How far they got")
                 } footer: {
-                    Text("Each stage counts every application that got at least that far. A wrong step can be removed with Edit history.")
+                    Text("Every application starts on the left. The ribbon that carries on is the ones that reached the next stage.")
+                }
+                Section {
+                    WeeklyChart(summary: summary)
+                } header: {
+                    Text("By week applied")
+                } footer: {
+                    Text("Each bar is the applications you sent that week, coloured by how they've turned out so far.")
+                }
+                Section {
+                    WaitingView(summary: summary)
+                } header: {
+                    Text("How long you've waited")
                 }
                 GuessesSection(store: store)
             }
@@ -317,51 +294,286 @@ private struct StageStatsView: View {
             }
         }
     }
+}
 
-    private func stat(_ value: String, _ label: String) -> some View {
-        VStack(spacing: 2) {
-            Text(value).font(.system(size: 22, weight: .bold, design: .rounded))
-            Text(label).font(.caption).foregroundColor(.secondary)
+/// Where an application stands now. Progressing means it reached any stage after the first.
+private enum Outcome: String, CaseIterable, Plottable {
+    case waiting = "No reply", rejected = "Rejected", progressing = "In progress", withdrawn = "Withdrawn"
+
+    var color: Color {
+        switch self {
+        case .waiting: return Color(.systemGray3)
+        case .rejected: return .red
+        case .progressing: return .green
+        case .withdrawn: return Color(.systemGray)
         }
-        .frame(maxWidth: .infinity)
     }
 }
 
-private struct FunnelRow: View {
-    let name: String
-    let reached: Int
+/// Everything the four views need, worked out once from the store
+private struct ProgressSummary {
+    struct Week: Identifiable { let start: Date; let outcome: Outcome; let count: Int; var id: String { "\(start)-\(outcome.rawValue)" } }
+    struct Step: Identifiable { let name: String; let count: Int; var id: String { name } }
+
     let total: Int
-    let endedHere: Int
+    let counts: [Outcome: Int]
+    /// The first stage's split: how many stopped there and how, and how many went on
+    let stoppedWaiting: Int, stoppedRejected: Int, stoppedWithdrawn: Int, wentOn: Int
+    /// Stages after the first that anyone reached, with how many reached each
+    let laterSteps: [Step]
+    let firstStageName: String
+    let weeks: [Week]
+    let waitingDays: [Int]
+    let replyDays: [Int]
 
-    private var share: Double { Double(reached) / Double(total) }
+    init(store: ApplicationsStore, now: Date = Date()) {
+        let progress = store.stages.filter { !store.isTerminal($0.id) }
+        let index = Dictionary(uniqueKeysWithValues: progress.enumerated().map { ($1.id, $0) })
+        func furthest(_ app: Application) -> Int { store.furthestStage(app).flatMap { index[$0.id] } ?? 0 }
+        func withdrawn(_ app: Application) -> Bool {
+            app.stageId == "withdrawn" || store.stageName(app.stageId).lowercased().hasPrefix("withdr")
+        }
+        func outcome(_ app: Application) -> Outcome {
+            if store.isTerminal(app.stageId) { return withdrawn(app) ? .withdrawn : .rejected }
+            return furthest(app) >= 1 ? .progressing : .waiting
+        }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(name).font(.system(size: 15, weight: .semibold))
-                Spacer()
-                Text("\(reached)").font(.system(size: 15, weight: .semibold)).monospacedDigit()
-                Text(share.formatted(.percent.precision(.fractionLength(0))))
-                    .font(.system(size: 13))
-                    .foregroundColor(.secondary)
-                    .monospacedDigit()
-                    .frame(width: 44, alignment: .trailing)
-            }
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.secondary.opacity(0.15))
-                    Capsule().fill(Color.indigo).frame(width: max(6, geo.size.width * share))
-                }
-            }
-            .frame(height: 8)
-            if endedHere > 0 {
-                Text("\(endedHere) rejected or withdrawn at this stage")
-                    .font(.caption)
-                    .foregroundColor(.red.opacity(0.85))
+        let apps = store.applications
+        total = apps.count
+        counts = Dictionary(grouping: apps, by: outcome).mapValues(\.count)
+        let stopped = apps.filter { furthest($0) == 0 }
+        stoppedWaiting = stopped.filter { outcome($0) == .waiting }.count
+        stoppedRejected = stopped.filter { outcome($0) == .rejected }.count
+        stoppedWithdrawn = stopped.filter { outcome($0) == .withdrawn }.count
+        wentOn = apps.count - stopped.count
+        firstStageName = progress.first?.name ?? "Applied"
+        laterSteps = progress.enumerated().dropFirst().compactMap { i, stage in
+            let n = apps.filter { furthest($0) >= i }.count
+            return n > 0 ? Step(name: stage.name, count: n) : nil
+        }
+
+        let cal = Calendar(identifier: .iso8601)
+        let byWeek = Dictionary(grouping: apps) { cal.dateInterval(of: .weekOfYear, for: $0.appliedAt)?.start ?? $0.appliedAt }
+        weeks = byWeek.keys.sorted().suffix(10).flatMap { start in
+            Outcome.allCases.compactMap { o in
+                let n = byWeek[start]!.filter { outcome($0) == o }.count
+                return n > 0 ? Week(start: start, outcome: o, count: n) : nil
             }
         }
-        .padding(.vertical, 4)
+
+        waitingDays = apps.filter { outcome($0) == .waiting }.map(\.daysSinceApplied)
+        // Time from applying to the first change of stage, whatever it was: that's when they replied
+        replyDays = apps.compactMap { app in
+            guard app.history.count > 1 else { return nil }
+            return Calendar.current.dateComponents([.day], from: app.history[0].at, to: app.history[1].at).day
+        }
+    }
+
+    func count(_ o: Outcome) -> Int { counts[o] ?? 0 }
+}
+
+// MARK: 1. Where they are now
+
+private struct OutcomeBar: View {
+    let summary: ProgressSummary
+
+    var body: some View {
+        let shown = Outcome.allCases.filter { summary.count($0) > 0 }
+        VStack(alignment: .leading, spacing: 10) {
+            GeometryReader { geo in
+                HStack(spacing: 2) {
+                    ForEach(shown, id: \.self) { o in
+                        Rectangle().fill(o.color)
+                            .frame(width: max(4, (geo.size.width - CGFloat(shown.count - 1) * 2) * CGFloat(summary.count(o)) / CGFloat(max(summary.total, 1))))
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+            .frame(height: 22)
+            LazyVGrid(columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)], spacing: 6) {
+                ForEach(shown, id: \.self) { o in
+                    HStack(spacing: 6) {
+                        Circle().fill(o.color).frame(width: 9, height: 9)
+                        Text("\(summary.count(o))").font(.subheadline.weight(.semibold)).monospacedDigit()
+                        Text(o.rawValue.lowercased()).font(.subheadline).foregroundColor(.secondary)
+                        Text(share(o)).font(.caption).foregroundColor(.secondary).monospacedDigit()
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 6)
         .accessibilityElement(children: .combine)
+    }
+
+    private func share(_ o: Outcome) -> String {
+        (Double(summary.count(o)) / Double(max(summary.total, 1))).formatted(.percent.precision(.fractionLength(0)))
+    }
+}
+
+// MARK: 2. Flow
+
+/// A small Sankey: the first stage splits into "went on", no reply, rejected and withdrawn; the
+/// went-on ribbon then narrows through each later stage anyone reached. Went-on sits on top so its
+/// chain has a clear lane, and every column is labelled in the band above the ribbons.
+private struct FlowView: View {
+    let summary: ProgressSummary
+
+    private struct Node { let label: String; let count: Int; let color: Color }
+
+    var body: some View {
+        let wentOn = Node(label: summary.laterSteps.first?.name ?? "Went on", count: summary.wentOn, color: Outcome.progressing.color)
+        let splits = [
+            wentOn,
+            Node(label: "No reply", count: summary.stoppedWaiting, color: Outcome.waiting.color),
+            Node(label: "Rejected", count: summary.stoppedRejected, color: Outcome.rejected.color),
+            Node(label: "Withdrawn", count: summary.stoppedWithdrawn, color: Outcome.withdrawn.color),
+        ].filter { $0.count > 0 }
+        let chain = Array(summary.laterSteps.dropFirst())
+        Canvas { ctx, size in
+            guard summary.total > 0 else { return }
+            let top: CGFloat = 34, gap: CGFloat = 8
+            let usable = size.height - top - gap * CGFloat(max(splits.count - 1, 0))
+            let unit = usable / CGFloat(summary.total)
+            let h = { (n: Int) in max(3, CGFloat(n) * unit) }
+            let barW: CGFloat = 10
+            let x0: CGFloat = 0, x1 = size.width * 0.42
+            let leftH = h(summary.total)
+            ctx.fill(Path(roundedRect: CGRect(x: x0, y: top, width: barW, height: leftH), cornerRadius: 3), with: .color(.indigo))
+            let chainStep = chain.isEmpty ? 0 : (size.width - x1 - 90) / CGFloat(chain.count)
+            // column labels share the band above the ribbons, each wrapping inside its own column
+            func label(_ text: String, x: CGFloat, width: CGFloat, bold: Bool = false) {
+                ctx.draw(Text(text).font(bold ? .caption2.weight(.semibold) : .caption2), in: CGRect(x: x, y: 0, width: width, height: top - 4))
+            }
+            label("\(summary.firstStageName) \(summary.total)", x: x0, width: x1 - x0 - 6, bold: true)
+            var leftY = top, rightY = top
+            var wentOnRect: CGRect?
+            for node in splits {
+                let nh = h(node.count)
+                ctx.fill(ribbon(from: CGRect(x: x0 + barW, y: leftY, width: 0, height: nh),
+                                to: CGRect(x: x1, y: rightY, width: 0, height: nh)), with: .color(node.color.opacity(0.45)))
+                let r = CGRect(x: x1, y: rightY, width: barW, height: nh)
+                ctx.fill(Path(r), with: .color(node.color))
+                if node.label == wentOn.label && node.color == wentOn.color {
+                    wentOnRect = r
+                    label("\(node.label) \(node.count)", x: x1, width: chain.isEmpty ? size.width - x1 : chainStep - 6)
+                } else {
+                    ctx.draw(Text("\(node.label) \(node.count)").font(.caption2), at: CGPoint(x: x1 + barW + 4, y: r.midY), anchor: .leading)
+                }
+                leftY += nh
+                rightY += nh + gap
+            }
+            // the ones that went on, narrowing through each later stage
+            guard var from = wentOnRect, !chain.isEmpty else { return }
+            for (i, s) in chain.enumerated() {
+                let x = x1 + chainStep * CGFloat(i + 1)
+                let to = CGRect(x: x, y: from.minY, width: barW, height: h(s.count))
+                ctx.fill(ribbon(from: CGRect(x: from.maxX, y: from.minY, width: 0, height: to.height),
+                                to: CGRect(x: to.minX, y: to.minY, width: 0, height: to.height)), with: .color(Outcome.progressing.color.opacity(0.45)))
+                ctx.fill(Path(to), with: .color(Outcome.progressing.color))
+                label("\(s.name) \(s.count)", x: to.minX, width: i == chain.count - 1 ? size.width - to.minX : chainStep - 6)
+                from = to
+            }
+        }
+        .frame(height: 200)
+        .padding(.vertical, 6)
+        .accessibilityLabel(accessibilityText(splits.map { "\($0.label) \($0.count)" }))
+    }
+
+    private func ribbon(from a: CGRect, to b: CGRect) -> Path {
+        var p = Path()
+        let mid = (a.minX + b.minX) / 2
+        p.move(to: CGPoint(x: a.minX, y: a.minY))
+        p.addCurve(to: CGPoint(x: b.minX, y: b.minY), control1: CGPoint(x: mid, y: a.minY), control2: CGPoint(x: mid, y: b.minY))
+        p.addLine(to: CGPoint(x: b.minX, y: b.maxY))
+        p.addCurve(to: CGPoint(x: a.minX, y: a.maxY), control1: CGPoint(x: mid, y: b.maxY), control2: CGPoint(x: mid, y: a.maxY))
+        p.closeSubpath()
+        return p
+    }
+
+    private func accessibilityText(_ parts: [String]) -> String {
+        "\(summary.firstStageName) \(summary.total), then " + (parts + summary.laterSteps.dropFirst().map { "\($0.name) \($0.count)" }).joined(separator: ", ")
+    }
+}
+
+// MARK: 3. By week applied
+
+private struct WeeklyChart: View {
+    let summary: ProgressSummary
+
+    var body: some View {
+        Chart(summary.weeks) { w in
+            BarMark(x: .value("Week", w.start, unit: .weekOfYear), y: .value("Applications", w.count))
+                .foregroundStyle(by: .value("Outcome", w.outcome))
+        }
+        .chartForegroundStyleScale(domain: Outcome.allCases, range: Outcome.allCases.map(\.color))
+        .chartXAxis {
+            AxisMarks(values: .stride(by: .weekOfYear)) { _ in
+                AxisValueLabel(format: .dateTime.day().month(.abbreviated), centered: true)
+            }
+        }
+        .chartLegend(position: .bottom, spacing: 8)
+        .frame(height: 200)
+        .padding(.vertical, 6)
+    }
+}
+
+// MARK: 4. How long you've waited
+
+/// The unanswered ones by days since applying, against how quickly replies have actually come.
+/// Anything older than your slowest reply so far is very likely a silent no.
+private struct WaitingView: View {
+    let summary: ProgressSummary
+
+    private struct Bucket: Identifiable { let label: String; let range: ClosedRange<Int>; let count: Int; var id: String { label } }
+
+    var body: some View {
+        let days = summary.waitingDays
+        let buckets = [("0–7 days", 0...7), ("8–14", 8...14), ("15–21", 15...21), ("22+", 22...Int.max)]
+            .map { Bucket(label: $0.0, range: $0.1, count: days.filter($0.1.contains).count) }
+        let most = max(buckets.map(\.count).max() ?? 1, 1)
+        let slowest = summary.replyDays.max()
+        let typical = median(summary.replyDays)
+        VStack(alignment: .leading, spacing: 8) {
+            if days.isEmpty {
+                Text("Nothing waiting for a reply.").font(.footnote).foregroundColor(.secondary)
+            } else {
+                ForEach(buckets) { b in
+                    HStack(spacing: 8) {
+                        Text(b.label).font(.subheadline).frame(width: 70, alignment: .leading)
+                        GeometryReader { geo in
+                            Capsule().fill(color(b, slowest: slowest))
+                                .frame(width: b.count == 0 ? 0 : max(6, geo.size.width * CGFloat(b.count) / CGFloat(most)))
+                                .frame(maxHeight: .infinity, alignment: .center)
+                        }
+                        .frame(height: 12)
+                        Text("\(b.count)").font(.subheadline.weight(.semibold)).monospacedDigit().frame(width: 28, alignment: .trailing)
+                    }
+                }
+                if let slowest, let typical {
+                    let silent = days.filter { $0 > slowest }.count
+                    Text("Replies came in \(typical) \(typical == 1 ? "day" : "days") typically, all within \(slowest). \(silent) of these \(silent == 1 ? "is" : "are") older than that, so probably silent no's.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                        .padding(.top, 4)
+                }
+            }
+        }
+        .padding(.vertical, 6)
+    }
+
+    /// Green while every reply so far would still fit, orange for the bucket your slowest reply falls
+    /// in, grey once past it
+    private func color(_ b: Bucket, slowest: Int?) -> Color {
+        guard let slowest else { return Outcome.waiting.color }
+        if b.range.upperBound <= slowest { return .green }
+        if b.range.lowerBound <= slowest { return .orange }
+        return Outcome.waiting.color
+    }
+
+    private func median(_ xs: [Int]) -> Int? {
+        guard !xs.isEmpty else { return nil }
+        let s = xs.sorted()
+        return s[s.count / 2]
     }
 }
 
