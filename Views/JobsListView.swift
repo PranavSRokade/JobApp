@@ -5,6 +5,7 @@ struct JobsListView: View {
     @State private var sheetToDelete: String? = nil
     @State private var showManageSheets = false
     @State private var showProfileEditor = false
+    @State private var showApplyProfile = false
     @State private var showFilters = false
     // Visa mode filters on the register, so the list must recompute once the sheet finishes parsing
     @ObservedObject private var sponsorStore = SponsorRegisterStore.shared
@@ -64,6 +65,9 @@ struct JobsListView: View {
                         Button { showProfileEditor = true } label: {
                             Label("Edit Profile", systemImage: "person.crop.circle")
                         }
+                        Button { showApplyProfile = true } label: {
+                            Label("Application Details", systemImage: "person.text.rectangle")
+                        }
                         Button { showSponsorRegister = true } label: {
                             Label("Sponsor Register", systemImage: "checkmark.shield")
                         }
@@ -87,6 +91,9 @@ struct JobsListView: View {
         }
         .sheet(isPresented: $showProfileEditor) {
             CVProfileEditorView(profileKey: vm.selectedProfile)
+        }
+        .sheet(isPresented: $showApplyProfile) {
+            ApplyProfileView(profileKey: vm.selectedProfile)
         }
         .sheet(isPresented: $showBulletSuggester) {
             BulletSuggesterView(profile: vm.selectedProfile)

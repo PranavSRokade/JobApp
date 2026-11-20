@@ -41,6 +41,7 @@
 		09DC9A422FE40F7C00ECDB7A /* JobsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09DC9A372FE40F7C00ECDB7A /* JobsViewModel.swift */; };
 		09DC9A432FE40F7C00ECDB7A /* JobRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09DC9A3A2FE40F7C00ECDB7A /* JobRowView.swift */; };
 		09DC9A442FE40F7C00ECDB7A /* JobsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09DC9A3B2FE40F7C00ECDB7A /* JobsListView.swift */; };
+		09A1C0DE0000000000000008 /* ApplyProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09A1C0DE0000000000000007 /* ApplyProfileView.swift */; };
 		09DC9A452FE40F7C00ECDB7A /* JobDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09DC9A392FE40F7C00ECDB7A /* JobDetailView.swift */; };
 		09DC9A492FE4181F00ECDB7A /* ManageSheetsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09DC9A482FE4181F00ECDB7A /* ManageSheetsView.swift */; };
 /* End PBXBuildFile section */
@@ -81,6 +82,7 @@
 		09DC9A392FE40F7C00ECDB7A /* JobDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JobDetailView.swift; sourceTree = "<group>"; };
 		09DC9A3A2FE40F7C00ECDB7A /* JobRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JobRowView.swift; sourceTree = "<group>"; };
 		09DC9A3B2FE40F7C00ECDB7A /* JobsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JobsListView.swift; sourceTree = "<group>"; };
+		09A1C0DE0000000000000007 /* ApplyProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplyProfileView.swift; sourceTree = "<group>"; };
 		09DC9A3C2FE40F7C00ECDB7A /* ScoreBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreBadgeView.swift; sourceTree = "<group>"; };
 		09DC9A482FE4181F00ECDB7A /* ManageSheetsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManageSheetsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -190,6 +192,7 @@
 				09DC9A392FE40F7C00ECDB7A /* JobDetailView.swift */,
 				09DC9A3A2FE40F7C00ECDB7A /* JobRowView.swift */,
 				09DC9A3B2FE40F7C00ECDB7A /* JobsListView.swift */,
+				09A1C0DE0000000000000007 /* ApplyProfileView.swift */,
 				09DC9A3C2FE40F7C00ECDB7A /* ScoreBadgeView.swift */,
 			);
 			path = Views;
@@ -296,6 +299,7 @@
 				09DC9A492FE4181F00ECDB7A /* ManageSheetsView.swift in Sources */,
 				09DC9A432FE40F7C00ECDB7A /* JobRowView.swift in Sources */,
 				09DC9A442FE40F7C00ECDB7A /* JobsListView.swift in Sources */,
+				09A1C0DE0000000000000008 /* ApplyProfileView.swift in Sources */,
 				095020512FE6E5DF00920FFC /* CVProfile.swift in Sources */,
 				095020552FE6E60100920FFC /* CVProfileService.swift in Sources */,
 				0950204B2FE53F3F00920FFC /* CVEditorView.swift in Sources */,

@@ -151,6 +151,48 @@ struct CVProfileService {
         _ = try await put(path: "/api/profile/filters?profile=\(profile)", body: filters)
     }
 
+    // The details application forms ask for; the Safari extension fills forms from these.
+    struct SavedAnswer: Codable, Equatable, Identifiable {
+        var id = UUID()
+        var question: String
+        var answer: String
+        private enum CodingKeys: String, CodingKey { case question, answer }
+    }
+
+    struct ApplyProfile: Codable, Equatable {
+        var firstName = ""
+        var lastName = ""
+        var email = ""
+        var phone = ""
+        var city = ""
+        var country = ""
+        var linkedin = ""
+        var github = ""
+        var portfolio = ""
+        var rightToWork = ""        // "yes" | "no" | ""
+        var needsSponsorship = ""   // "yes" | "no" | ""
+        var workRightsNote = ""
+        var noticePeriod = ""
+        var salaryExpectation = ""
+        var answers: [SavedAnswer] = []
+    }
+
+    private struct ApplyResponse: Decodable { let apply: ApplyProfile }
+
+    static func fetchApplyProfile(for profile: String) async throws -> ApplyProfile {
+        guard let url = URL(string: "\(base)/api/profile/apply?profile=\(profile)") else { throw CVServiceError.decodingError }
+        let (data, response) = try await WorkerAPI.session.data(from: url)
+        guard (response as? HTTPURLResponse)?.statusCode == 200,
+              let result = try? JSONDecoder().decode(ApplyResponse.self, from: data) else { throw CVServiceError.decodingError }
+        return result.apply
+    }
+
+    static func saveApplyProfile(_ apply: ApplyProfile, for profile: String) async throws -> ApplyProfile {
+        let data = try await put(path: "/api/profile/apply?profile=\(profile)", body: apply)
+        guard let result = try? JSONDecoder().decode(ApplyResponse.self, from: data) else { throw CVServiceError.decodingError }
+        return result.apply
+    }
+
     static func fetchDefaultTemplate(for profile: String) async throws -> String {
         guard let url = URL(string: "\(base)/api/profile/default-template?profile=\(profile)") else { throw CVServiceError.decodingError }
         let (data, _) = try await WorkerAPI.session.data(from: url)
