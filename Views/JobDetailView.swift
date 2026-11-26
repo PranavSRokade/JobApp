@@ -305,6 +305,7 @@ struct JobDetailView: View {
         .task {
             loadSponsorMatches()
             contactEmails = Self.extractEmails(from: effectiveJD)
+            await syncPreparedCV() // a CV or letter made before JobFill existed gets copied the first time the job opens
         }
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -325,7 +326,7 @@ struct JobDetailView: View {
         .sheet(isPresented: Binding(
             get: { cvResult != nil },
             set: { if !$0 { cvResult = nil } }
-        )) {
+        ), onDismiss: { Task { await syncPreparedCV() } }) { // picks up edits made in the CV editor
             if let result = cvResult {
                 CVPreviewView(jd: effectiveJD ?? "", jobId: job.jobId, profile: profile, result: result,
                               fileName: resumeFileName(title: job.title, company: job.company, location: job.location),
@@ -352,7 +353,7 @@ struct JobDetailView: View {
         .sheet(isPresented: Binding(
             get: { coverLetter != nil },
             set: { if !$0 { coverLetter = nil } }
-        )) {
+        ), onDismiss: { Task { await syncPreparedCV() } }) { // picks up an edited letter
             if let letter = coverLetter {
                 CoverLetterPreviewView(letter: letter,
                                        jobId: job.jobId,
@@ -682,6 +683,11 @@ struct JobDetailView: View {
         }
     }
 
+    /// Keeps the worker's copy of this job's CV and cover letter current, for JobFill in Safari
+    private func syncPreparedCV() async {
+        await PreparedCVSync.syncIfNeeded(job: job, region: region, sheet: sheetName, profile: profile)
+    }
+
     private func generateCV(jd: String) {
         cvStartedAt = Date()
         isGeneratingCV = true
@@ -691,6 +697,7 @@ struct JobDetailView: View {
                 let result = try await CVService.generateCV(jd: jd, profile: profile)
                 CVCacheStore.save(result, for: job.jobId)
                 cvResult = result
+                await syncPreparedCV()
             } catch {
                 cvError = error.localizedDescription
             }
@@ -706,6 +713,7 @@ struct JobDetailView: View {
                 let letter = try await CVService.generateCoverLetter(jd: jd, latex: latex, profile: profile)
                 CoverLetterCacheStore.save(letter, for: job.jobId)
                 coverLetter = letter
+                await syncPreparedCV()
             } catch {
                 coverLetterError = error.localizedDescription
             }
