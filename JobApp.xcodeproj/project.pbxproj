@@ -46,6 +46,7 @@
 		09DC9A492FE4181F00ECDB7A /* ManageSheetsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09DC9A482FE4181F00ECDB7A /* ManageSheetsView.swift */; };
 		3C89687A1302CC7B2610E278 /* images in Resources */ = {isa = PBXBuildFile; fileRef = 1A3B6C708BD87FA5DF3FE1FC /* images */; };
 		42E396635F74756F8BFAA677 /* background.js in Resources */ = {isa = PBXBuildFile; fileRef = 4B6DE25DFAC26D538355C92B /* background.js */; };
+		5997711F3E94D177D4A6597A /* Deadline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EB448E205D407C9B9592768 /* Deadline.swift */; };
 		89ED22C533626A89568CDE30 /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09A1C0DE0000000000000005 /* Secrets.swift */; };
 		8D1E52C1A295BEE9FCB416DF /* popup.js in Resources */ = {isa = PBXBuildFile; fileRef = DEFFB1085AC9178B6365EE61 /* popup.js */; };
 		8E149196A7CF2B4DB80B3F71 /* SafariWebExtensionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6027979C19C98A8521EC6A61 /* SafariWebExtensionHandler.swift */; };
@@ -125,6 +126,7 @@
 		3707F97D6776EC2FF954CEAD /* content.js */ = {isa = PBXFileReference; includeInIndex = 1; path = content.js; sourceTree = "<group>"; };
 		4B6DE25DFAC26D538355C92B /* background.js */ = {isa = PBXFileReference; includeInIndex = 1; path = background.js; sourceTree = "<group>"; };
 		6027979C19C98A8521EC6A61 /* SafariWebExtensionHandler.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SafariWebExtensionHandler.swift; sourceTree = "<group>"; };
+		8EB448E205D407C9B9592768 /* Deadline.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Deadline.swift; sourceTree = "<group>"; };
 		AAEFB1A1C0F04265704B71BA /* manifest.json */ = {isa = PBXFileReference; includeInIndex = 1; path = manifest.json; sourceTree = "<group>"; };
 		B8D4B93FED4A8ED8EB7CAE5A /* JobFill.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = JobFill.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		C2DAD50BAD83F915AC779759 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -217,6 +219,7 @@
 				09A1C0DE0000000000000005 /* Secrets.swift */,
 				095020442FE527A000920FFC /* StarredJobsStore.swift */,
 				09DC9A352FE40F7C00ECDB7A /* JobsService.swift */,
+				8EB448E205D407C9B9592768 /* Deadline.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -437,6 +440,7 @@
 				0950204D2FE53F4900920FFC /* CVModels.swift in Sources */,
 				095020532FE6E5E900920FFC /* CVProfileEditorView.swift in Sources */,
 				09DC9A452FE40F7C00ECDB7A /* JobDetailView.swift in Sources */,
+				5997711F3E94D177D4A6597A /* Deadline.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

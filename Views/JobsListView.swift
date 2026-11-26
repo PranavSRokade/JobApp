@@ -28,9 +28,10 @@ struct JobsListView: View {
             .safeAreaInset(edge: .top, spacing: 0) {
                 MarketTabs(region: $vm.region)
             }
-            .navigationTitle(vm.showStarredOnly ? "\(vm.filteredJobs.count) Starred"
-                             : vm.sortMode == .visa ? "\(vm.filteredJobs.count) Visa jobs"
-                             : "\(vm.filteredJobs.count) Jobs")
+            // Once, on the pager: a .searchable on each market's List left three competing for the
+            // one navigation bar, and the field never showed
+            .searchable(text: $vm.searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search jobs…")
+            .navigationTitle(pageTitle)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
@@ -81,6 +82,18 @@ struct JobsListView: View {
                 ToolbarItem(placement: .navigationBarLeading) {
                     if !vm.availableSheets.isEmpty {
                         sheetPicker
+                    }
+                }
+                // The countdown to 1 February sits beside the large title; the plain title still
+                // shows once the list scrolls
+                ToolbarItem(placement: .largeTitle) {
+                    HStack(alignment: .center, spacing: 12) {
+                        Text(pageTitle)
+                            .font(.largeTitle.bold())
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                        Spacer(minLength: 0)
+                        DeadlineTiles()
                     }
                 }
             }
@@ -165,9 +178,14 @@ struct JobsListView: View {
                 }
                 .listStyle(.plain)
                 .refreshable { await model.load() }
-                .searchable(text: $vm.searchText, prompt: "Search jobs…")
             }
         }
+    }
+
+    private var pageTitle: String {
+        vm.showStarredOnly ? "\(vm.filteredJobs.count) Starred"
+            : vm.sortMode == .visa ? "\(vm.filteredJobs.count) Visa jobs"
+            : "\(vm.filteredJobs.count) Jobs"
     }
 
     private var sheetPicker: some View {

@@ -8,6 +8,7 @@ struct JobTrackerApp: App {
     @StateObject private var vm = JobsViewModel()
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var tab = 0
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -31,6 +32,12 @@ struct JobTrackerApp: App {
             .onReceive(NotificationCenter.default.publisher(for: AppDelegate.openStarred)) { _ in
                 tab = 0
                 vm.showStarredOnly = true
+            }
+            .task { DeadlineBadgeCleanup.runOnce() }
+            // JobFill's Mark applied adds to the list from Safari, so reload it whenever the app comes back
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active else { return }
+                Task { await vm.applicationsStore.refresh() }
             }
         }
     }
