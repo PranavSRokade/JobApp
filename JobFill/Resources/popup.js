@@ -49,7 +49,19 @@ fillButton.addEventListener('click', async () => {
             const need = reply.needYou
                 ? ` <strong>${reply.needYou}</strong> required ${reply.needYou === 1 ? 'field needs' : 'fields need'} you (orange dashes).`
                 : ' Nothing required is left empty.';
-            result.innerHTML = `Filled <strong>${reply.filled}</strong> of ${reply.fields} (purple outline).${need} Check everything before you submit.`;
+            const drafted = reply.drafted ? ` <strong>${reply.drafted}</strong> ${reply.drafted === 1 ? 'answer' : 'answers'} drafted (purple dashes): read before sending.` : '';
+            const cv = {
+                attached: ' Your JobApp CV for this job is attached.',
+                save: ' The CV field wouldn’t take the file: use Save CV on the page.',
+                none: ' No CV made for this job in JobApp: tap Generate CV on the page.',
+            }[reply.cv] || '';
+            const letter = {
+                attached: ' Your JobApp cover letter is attached.',
+                save: ' The letter field wouldn’t take the file: use Save letter on the page.',
+                none: ' No cover letter made for this job: tap Generate letter on the page.',
+            }[reply.letter] || '';
+            const asks = reply.questions ? ` <strong>${reply.questions}</strong> ${reply.questions === 1 ? 'question waits' : 'questions wait'} for you on the page.` : '';
+            result.innerHTML = `Filled <strong>${reply.filled}</strong> of ${reply.fields} (purple outline).${drafted}${cv}${letter}${asks}${need} After you submit, tap Mark applied on the page.`;
         }
     } catch (e) {
         result.textContent = `Couldn't fill: ${e.message || e}`;
