@@ -130,3 +130,21 @@ struct CVResult: Codable, Identifiable {
         case latex, pdfData, decisions, pools
     }
 }
+
+/// One thing a job ad asks for that the CV does not show, from /api/cv/review
+struct CVGap: Decodable {
+    let gap: String
+    let why: String
+    let fix: Fix
+
+    struct Fix: Decodable {
+        /// "swap": put pool bullet `add` in place of `replace` (same company, 1-based indices);
+        /// "skill": add `skill` to the skills line; "write": nothing covers it, a new bullet `about` it
+        let kind: String
+        let company: String?
+        let add: Int?
+        let replace: Int?
+        let skill: String?
+        let about: String?
+    }
+}

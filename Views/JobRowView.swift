@@ -14,12 +14,20 @@ struct JobRowView: View {
         HStack(alignment: .top, spacing: 12) {
             // Rank badge with optional star overlay
             ZStack(alignment: .topTrailing) {
-                Text("\(job.rank)")
-                    .font(.system(size: job.rank >= 100 ? 13 : 16, weight: .heavy, design: .rounded))
-                    .foregroundColor(.white)
-                    .frame(width: 40, height: 40)
-                    .background(rankColor)
-                    .clipShape(Circle())
+                // A job added by hand has no scores: a hand icon instead of a rank of 0
+                Group {
+                    if job.hasScores {
+                        Text("\(job.rank)")
+                            .font(.system(size: job.rank >= 100 ? 13 : 16, weight: .heavy, design: .rounded))
+                    } else {
+                        Image(systemName: "hand.point.up.left.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                }
+                .foregroundColor(.white)
+                .frame(width: 40, height: 40)
+                .background(job.hasScores ? rankColor : Color.indigo)
+                .clipShape(Circle())
 
                 if isStarred {
                     Image(systemName: "star.fill")
@@ -115,10 +123,12 @@ struct JobRowView: View {
 
             Spacer()
 
-            VStack(spacing: 6) {
-                ScoreBadgeView(label: "SKL", value: job.skills)
-                ScoreBadgeView(label: "EXP", value: job.experience)
-                ScoreBadgeView(label: "FIT", value: job.locationFit)
+            if job.hasScores {
+                VStack(spacing: 6) {
+                    ScoreBadgeView(label: "SKL", value: job.skills)
+                    ScoreBadgeView(label: "EXP", value: job.experience)
+                    ScoreBadgeView(label: "FIT", value: job.locationFit)
+                }
             }
         }
         .padding(.vertical, 6)

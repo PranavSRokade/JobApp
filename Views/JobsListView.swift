@@ -9,7 +9,7 @@ struct JobsListView: View {
     @State private var showFilters = false
     // Visa mode filters on the register, so the list must recompute once the sheet finishes parsing
     @ObservedObject private var sponsorStore = SponsorRegisterStore.shared
-    @State private var showQuickCV = false
+    @State private var showAddJob = false
     @State private var showBulletSuggester = false
     @State private var showFeatureChats = false
     @State private var showSponsorRegister = false
@@ -59,8 +59,8 @@ struct JobsListView: View {
                         Button { showBulletSuggester = true } label: {
                             Label("Suggest Bullets", systemImage: "wand.and.sparkles")
                         }
-                        Button { showQuickCV = true } label: {
-                            Label("Quick CV", systemImage: "doc.text.below.ecg")
+                        Button { showAddJob = true } label: {
+                            Label("Add Job", systemImage: "plus.rectangle.on.rectangle")
                         }
                         Divider()
                         Button { showProfileEditor = true } label: {
@@ -111,8 +111,9 @@ struct JobsListView: View {
         .sheet(isPresented: $showBulletSuggester) {
             BulletSuggesterView(profile: vm.selectedProfile)
         }
-        .sheet(isPresented: $showQuickCV) {
-            QuickCVView(profile: vm.selectedProfile)
+        .sheet(isPresented: $showAddJob) {
+            AddJobView(addedStore: vm.addedJobsStore, applicationsStore: vm.applicationsStore,
+                       starredStore: vm.starredStore, profile: vm.selectedProfile, region: vm.region)
         }
         .sheet(isPresented: $showFeatureChats) {
             FeatureChatsListView(store: vm.chatStore, profile: vm.selectedProfile)
@@ -146,11 +147,12 @@ struct JobsListView: View {
     @ViewBuilder
     private func regionPage(_ model: RegionJobsModel) -> some View {
         let filtered = vm.filteredJobs(in: model)
+        let added = addedJobs(in: model.region)
         Group {
-            if model.isLoading && model.jobs.isEmpty {
+            if model.isLoading && model.jobs.isEmpty && added.isEmpty {
                 ProgressView("Loading jobs…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let error = model.errorMessage {
+            } else if let error = model.errorMessage, added.isEmpty {
                 ContentUnavailableView(
                     "Failed to load",
                     systemImage: "wifi.exclamationmark",
@@ -162,7 +164,7 @@ struct JobsListView: View {
                     systemImage: "star",
                     description: Text("Swipe right on a job to star it")
                 )
-            } else if !model.isLoading && model.jobs.isEmpty {
+            } else if !model.isLoading && model.jobs.isEmpty && added.isEmpty {
                 ContentUnavailableView(
                     "No jobs yet",
                     systemImage: "tray",
@@ -171,14 +173,47 @@ struct JobsListView: View {
                                       : "Nothing has been scraped for \(model.region == "us" ? "the USA" : "the UK") yet")
                 )
             } else {
-                List(filtered) { job in
-                    NavigationLink(destination: JobDetailView(job: job, sheetName: model.sheetName, starredStore: vm.starredStore, applicationsStore: vm.applicationsStore, profile: vm.selectedProfile, region: model.region)) {
-                        JobRowView(job: job, sheetName: model.sheetName, starredStore: vm.starredStore, isApplied: vm.applicationsStore.isApplied(job.jobId), region: model.region)
+                List {
+                    if !added.isEmpty {
+                        Section {
+                            ForEach(added) { item in
+                                NavigationLink(destination: JobDetailView(job: item.job, sheetName: nil, starredStore: vm.starredStore, applicationsStore: vm.applicationsStore, profile: vm.selectedProfile, region: item.region)) {
+                                    JobRowView(job: item.job, sheetName: nil, starredStore: vm.starredStore, isApplied: false, region: item.region)
+                                }
+                                .swipeActions(edge: .trailing) {
+                                    Button(role: .destructive) { vm.addedJobsStore.remove(item.id) } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                }
+                            }
+                        } header: {
+                            Text("Added by you")
+                        }
+                    }
+                    Section {
+                        ForEach(filtered) { job in
+                            NavigationLink(destination: JobDetailView(job: job, sheetName: model.sheetName, starredStore: vm.starredStore, applicationsStore: vm.applicationsStore, profile: vm.selectedProfile, region: model.region)) {
+                                JobRowView(job: job, sheetName: model.sheetName, starredStore: vm.starredStore, isApplied: vm.applicationsStore.isApplied(job.jobId), region: model.region)
+                            }
+                        }
+                    } header: {
+                        if !added.isEmpty && !filtered.isEmpty { Text("From the feed") }
                     }
                 }
                 .listStyle(.plain)
                 .refreshable { await model.load() }
             }
+        }
+    }
+
+    /// Jobs added by hand for this market and not yet applied to, matching the search; hidden
+    /// while only starred jobs show
+    private func addedJobs(in region: String) -> [AddedJob] {
+        guard !vm.showStarredOnly else { return [] }
+        let query = vm.searchText.trimmingCharacters(in: .whitespaces).lowercased()
+        return vm.addedJobsStore.jobs(in: region).filter { item in
+            !vm.applicationsStore.isApplied(item.id)
+                && (query.isEmpty || item.job.title.lowercased().contains(query) || item.job.company.lowercased().contains(query))
         }
     }
 

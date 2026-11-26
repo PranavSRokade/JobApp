@@ -42,8 +42,16 @@ struct JobsService {
     /// Fetches a job's description on demand (for rows the scraper couldn't fetch) and asks the
     /// worker to store it in the sheet so it's there next time, on every device.
     static func fetchJobDescription(url: String, profile: String, sheet: String?, jobId: Int) async throws -> String {
-        struct Body: Encodable { let url: String; let profile: String; let sheet: String?; let jobId: Int }
-        struct Resp: Decodable { let jd: String?; let savedToSheet: Bool?; let error: String? }
+        let jd = try await fetchJobAd(url: url, profile: profile, sheet: sheet, jobId: jobId).jd
+        JDCache.save(jd, for: jobId)
+        return jd
+    }
+
+    /// The job ad behind any link: LinkedIn, a job board's API, the page's JobPosting data, or as a
+    /// last resort the page's main text (`source` "page"), which is worth a look before using.
+    static func fetchJobAd(url: String, profile: String, sheet: String? = nil, jobId: Int? = nil) async throws -> (jd: String, source: String?) {
+        struct Body: Encodable { let url: String; let profile: String; let sheet: String?; let jobId: Int? }
+        struct Resp: Decodable { let jd: String?; let savedToSheet: Bool?; let source: String?; let error: String? }
         guard let endpoint = URL(string: "https://job-worker.pranavrokade.workers.dev/api/jd") else { throw JobsServiceError.invalidURL }
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
@@ -56,8 +64,7 @@ struct JobsService {
             throw JobsServiceError.server(decoded?.error ?? "Could not fetch the description")
         }
         guard let jd = decoded?.jd, !jd.isEmpty else { throw JobsServiceError.noData }
-        JDCache.save(jd, for: jobId)
-        return jd
+        return (jd, decoded?.source)
     }
 }
 

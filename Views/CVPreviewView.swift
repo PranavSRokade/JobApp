@@ -3,7 +3,7 @@ import PDFKit
 import UniformTypeIdentifiers
 
 /// "Resume_<Role title>_<Company name>_<City>.pdf" — parts that are unknown are left out,
-/// e.g. Quick CV (pasted JD) gives "Resume_React Native Engineer.pdf".
+/// e.g. a job with no company or city gives "Resume_React Native Engineer.pdf".
 func resumeFileName(title: String, company: String? = nil, location: String? = nil) -> String {
     documentFileName(prefix: "Resume", title: title, company: company, location: location)
 }
@@ -50,7 +50,16 @@ struct CVPreviewView: View {
 
     @State private var showShareOptions = false
     @State private var shareItems: [Any]? = nil
-    @State private var showEditor = false
+    @State private var showReview = false
+    /// The editor opens with these choices: the CV's own, or the CV's with a review's fixes applied
+    @State private var editing: EditorSeed?
+    /// Set by the review, opened once the review sheet has gone
+    @State private var pendingEdit: EditorSeed?
+
+    private struct EditorSeed: Identifiable {
+        let id = UUID()
+        let decisions: CVDecisions
+    }
     @State private var showJD = false
     @State private var showSave = false
 
@@ -63,7 +72,10 @@ struct CVPreviewView: View {
                 .toolbar {
                     if canEdit {
                         ToolbarItem(placement: .navigationBarLeading) {
-                            Button("Edit") { showEditor = true }
+                            HStack(spacing: 16) {
+                                Button("Edit") { editing = EditorSeed(decisions: result.decisions) }
+                                Button("Review") { showReview = true }
+                            }
                         }
                     }
                     ToolbarItem(placement: .navigationBarTrailing) {
@@ -121,9 +133,18 @@ struct CVPreviewView: View {
                         ActivityShareSheet(items: items)
                     }
                 }
-                .sheet(isPresented: $showEditor) {
+                .sheet(isPresented: $showReview, onDismiss: {
+                    editing = pendingEdit
+                    pendingEdit = nil
+                }) {
+                    CVReviewView(jd: jd, result: result, profile: profile) { decisions in
+                        pendingEdit = EditorSeed(decisions: decisions)
+                        showReview = false
+                    }
+                }
+                .sheet(item: $editing) { seed in
                     CVEditorView(
-                        decisions: result.decisions,
+                        decisions: seed.decisions,
                         pools: result.pools,
                         latex: result.latex,
                         jd: jd,

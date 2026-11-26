@@ -87,6 +87,7 @@ final class JobsViewModel: ObservableObject {
     let chatStore: FeatureChatStore = FeatureChatStore(profile: activeProfile)
     // Jobs you've applied to — KV-backed, independent of the loaded sheet
     let applicationsStore: ApplicationsStore = ApplicationsStore(profile: activeProfile)
+    let addedJobsStore: AddedJobsStore = AddedJobsStore(profile: activeProfile)
 
     private var cancellables: Set<AnyCancellable> = []
     private var filtersCancellable: AnyCancellable?
@@ -203,6 +204,7 @@ final class JobsViewModel: ObservableObject {
         us.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &cancellables)
         ww.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &cancellables)
         applicationsStore.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &cancellables)
+        addedJobsStore.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &cancellables)
 
         subscribeToFilters()
         subscribeToStars()

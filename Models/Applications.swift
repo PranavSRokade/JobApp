@@ -43,7 +43,8 @@ struct Application: Codable, Identifiable {
     var id: Int { job.jobId }
 
     /// Added by hand from the Applied tab rather than from a scraped sheet
-    var isCustom: Bool { region == ApplicationsStore.customRegion }
+    /// Added by hand: the old Add application form (region "custom") or the Jobs page's Add job
+    var isCustom: Bool { region == ApplicationsStore.customRegion || id >= AddedJobsStore.firstId }
 
     var daysSinceApplied: Int {
         let cal = Calendar.current
@@ -167,24 +168,6 @@ final class ApplicationsStore: ObservableObject {
 
     /// A job applied to outside the scraped sheets. The worker keys uploaded CVs by a numeric job id of
     /// at most 12 digits; LinkedIn ids are 10 digits, so 9xx,xxx,xxx,xxx can never clash with one.
-    func addCustom(title: String, company: String, link: String, location: String, jd: String?) -> Job {
-        var id = 900_000_000_000 + Int(Date().timeIntervalSince1970)
-        while isApplied(id) { id += 1 }
-        let job = Job(
-            rank: 0, title: title, company: company, jobId: id, link: link, over100: false, age: "",
-            location: location, skills: 0, experience: 0, seniority: 0, locationFit: 0, companySize: 0,
-            scoreSource: "", jd: jd, sponsorship: nil, salary: nil, visaNotes: nil, applicants: nil
-        )
-        let now = Date()
-        let first = stages.first?.id ?? "applied"
-        applications.insert(Application(
-            job: job, region: Self.customRegion, sheet: nil, appliedAt: now, stageId: first, notes: "",
-            applicantsAtFetch: nil, applicantsAtApply: nil, history: [StatusChange(stageId: first, at: now)]
-        ), at: 0)
-        persist()
-        return job
-    }
-
     func unmark(_ jobId: Int) {
         applications.removeAll { $0.id == jobId }
         persist()

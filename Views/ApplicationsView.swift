@@ -18,7 +18,6 @@ struct ApplicationsView: View {
     @State private var previewURL: URL? = nil
     @State private var cvBusy = false
     @State private var cvError: String? = nil
-    @State private var showAdd = false
 
     private var query: String { searchText.trimmingCharacters(in: .whitespaces) }
 
@@ -87,9 +86,6 @@ struct ApplicationsView: View {
                     if cvBusy { ProgressView() }
                 }
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
-                    Button { showAdd = true } label: {
-                        Label("Add application", systemImage: "plus")
-                    }
                     Button { showStats = true } label: {
                         Label("Progress", systemImage: "chart.bar.xaxis")
                     }
@@ -105,9 +101,6 @@ struct ApplicationsView: View {
             }
             .sheet(isPresented: $showStats) {
                 StageStatsView(store: store)
-            }
-            .sheet(isPresented: $showAdd) {
-                AddApplicationView(store: store, profile: profile)
             }
             .sheet(item: Binding(get: { historyJobId.map(IdentifiedJob.init) }, set: { historyJobId = $0?.id })) { item in
                 HistoryEditorView(store: store, jobId: item.id)
@@ -801,101 +794,6 @@ enum ShortlistChance {
         case ...3: return .red
         case 4...6: return .orange
         default: return .green
-        }
-    }
-}
-
-// MARK: - Add an application by hand
-
-/// A job applied to outside the scraped sheets (a company site, a referral, an email). Optionally
-/// makes a quick CV from the pasted description and attaches it as the CV sent, then asks for the
-/// shortlist guess like any other application.
-struct AddApplicationView: View {
-    @ObservedObject var store: ApplicationsStore
-    let profile: String
-    @Environment(\.dismiss) private var dismiss
-    @State private var title = ""
-    @State private var company = ""
-    @State private var link = ""
-    @State private var location = ""
-    @State private var jd = ""
-    @State private var makeCV = true
-    @State private var saving = false
-    @State private var error: String?
-    @State private var added: Job?
-
-    private func trimmed(_ s: String) -> String { s.trimmingCharacters(in: .whitespacesAndNewlines) }
-    private var hasJD: Bool { !trimmed(jd).isEmpty }
-    private var canSave: Bool { !trimmed(title).isEmpty && !trimmed(company).isEmpty && !saving && added == nil }
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("Job") {
-                    TextField("Role", text: $title)
-                    TextField("Company", text: $company)
-                    TextField("Link (optional)", text: $link)
-                        .keyboardType(.URL)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                    TextField("Location (optional)", text: $location)
-                }
-                Section {
-                    TextEditor(text: $jd).frame(minHeight: 160)
-                    Toggle("Make a quick CV and attach it", isOn: $makeCV).disabled(!hasJD)
-                } header: {
-                    Text("Job description")
-                } footer: {
-                    Text(hasJD ? "The CV is built from this description and saved as the CV you sent. Open it from the application."
-                               : "Paste the description to make a quick CV. You can also attach your own PDF later.")
-                }
-                if let error {
-                    Section { Text(error).font(.footnote).foregroundColor(.red) }
-                }
-            }
-            .navigationTitle("Add application")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") { dismiss() }.disabled(saving)
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    if saving {
-                        ProgressView()
-                    } else {
-                        Button("Save", action: save).fontWeight(.semibold).disabled(!canSave)
-                    }
-                }
-            }
-            .interactiveDismissDisabled(saving)
-            .sheet(item: $added, onDismiss: { dismiss() }) { job in
-                ShortlistChanceSheet(title: job.title, company: job.company, initial: nil) {
-                    store.setShortlistChance(job.jobId, $0)
-                }
-            }
-        }
-    }
-
-    private func save() {
-        let job = store.addCustom(
-            title: trimmed(title), company: trimmed(company), link: trimmed(link),
-            location: trimmed(location), jd: hasJD ? trimmed(jd) : nil
-        )
-        guard makeCV && hasJD else { added = job; return }
-        saving = true
-        Task {
-            do {
-                let result = try await CVService.generateCV(jd: trimmed(jd), profile: profile)
-                let name = resumeFileName(title: job.title, company: job.company, location: job.location.isEmpty ? nil : job.location)
-                try await store.attachCV(job.jobId, data: result.pdfData, name: name.hasSuffix(".pdf") ? name : "\(name).pdf")
-            } catch {
-                // The application is saved either way; only the CV is missing
-                self.error = "Saved, but the CV failed: \(error.localizedDescription)"
-                saving = false
-                try? await Task.sleep(nanoseconds: 1_500_000_000)
-            }
-            saving = false
-            added = job
         }
     }
 }

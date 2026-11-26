@@ -73,6 +73,15 @@ struct CVService {
         return (decoded.latex, pdfData)
     }
 
+    /// What the job ad asks for that this CV does not show, each with a way to close it
+    static func review(jd: String, latex: String, decisions: CVDecisions, profile: String = "spencer") async throws -> [CVGap] {
+        struct Body: Encodable { let jd: String; let latex: String; let decisions: CVDecisions; let profile: String }
+        struct Resp: Decodable { let gaps: [CVGap] }
+        let data = try await post(path: "/api/cv/review", body: Body(jd: jd, latex: latex, decisions: decisions, profile: profile))
+        guard let decoded = try? JSONDecoder().decode(Resp.self, from: data) else { throw CVServiceError.decodingError }
+        return decoded.gaps
+    }
+
     /// First-person answer to an application question ("why do you want to join us…"), grounded in
     /// the JD and the cached CV (or the profile's background when no CV has been generated yet).
     static func generateAnswer(jd: String, company: String, title: String, question: String, latex: String?, profile: String = "spencer") async throws -> String {

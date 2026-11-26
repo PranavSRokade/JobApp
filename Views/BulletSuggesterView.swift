@@ -12,10 +12,16 @@ struct BulletSuggesterView: View {
     @State private var isSaving = false
     @State private var error: String?
     @State private var savedToast = false
+    /// Called after bullets are saved to the pool (the CV review marks its gap done)
+    private let onSaved: (() -> Void)?
 
-    init(profile: String) {
+    /// `company` and `description` start the form, e.g. from a CV review gap
+    init(profile: String, company: CVCompany? = nil, description: String = "", onSaved: (() -> Void)? = nil) {
         self.profile = profile
-        _selectedCompany = State(initialValue: CVCompany.cases(for: profile).first ?? .nHabit)
+        self.onSaved = onSaved
+        let companies = CVCompany.cases(for: profile)
+        _selectedCompany = State(initialValue: company.flatMap { companies.contains($0) ? $0 : nil } ?? companies.first ?? .nHabit)
+        _description = State(initialValue: description)
     }
 
     var body: some View {
@@ -211,6 +217,7 @@ struct BulletSuggesterView: View {
                 try await CVProfileService.saveBullets(prof.bullets, for: profile)
                 selected = []
                 savedToast = true
+                onSaved?()
                 Task { try? await Task.sleep(nanoseconds: 2_000_000_000); savedToast = false }
             } catch {
                 self.error = error.localizedDescription

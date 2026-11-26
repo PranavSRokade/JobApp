@@ -50,12 +50,17 @@ struct JobDetailView: View {
                     Text(job.company)
                         .font(.headline)
                         .foregroundColor(.secondary)
-                    Label(job.location, systemImage: "location")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    Label(actualAge(sheetName: sheetName, ageText: job.age), systemImage: "clock")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                    // A job added by hand may have no location, and has no listing age
+                    if !job.location.isEmpty {
+                        Label(job.location, systemImage: "location")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    if !job.age.isEmpty {
+                        Label(actualAge(sheetName: sheetName, ageText: job.age), systemImage: "clock")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
 
                     if let applicants = job.applicantsText {
                         Label(applicants, systemImage: "person.3")
@@ -127,11 +132,11 @@ struct JobDetailView: View {
 
                 Divider()
 
-                // Open / share LinkedIn
+                // Open / share the listing (LinkedIn for scraped jobs, any careers site for added ones)
                 if let url = URL(string: job.link) {
                     HStack(spacing: 8) {
                         Link(destination: url) {
-                            Label("View on LinkedIn", systemImage: "arrow.up.right.square")
+                            Label(url.host()?.contains("linkedin.com") == true ? "View on LinkedIn" : "View job ad", systemImage: "arrow.up.right.square")
                                 .frame(maxWidth: .infinity)
                                 .padding()
                                 .background(Color.blue)
