@@ -46,6 +46,7 @@ struct CVPreviewView: View {
     var fileName: String = "Resume.pdf"
     /// False once the job is applied to: the CV is then a record of what was sent
     var canEdit: Bool = true
+    var region: String? = nil // the job's market, so an edited CV keeps the right work-rights line
 
     @State private var showShareOptions = false
     @State private var shareItems: [Any]? = nil
@@ -127,7 +128,8 @@ struct CVPreviewView: View {
                         latex: result.latex,
                         jd: jd,
                         jobId: jobId,
-                        profile: profile
+                        profile: profile,
+                        region: region
                     ) { newLatex, newPDF, newDecisions in
                         result.latex = newLatex
                         result.pdfData = newPDF

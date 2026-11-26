@@ -330,7 +330,8 @@ struct JobDetailView: View {
             if let result = cvResult {
                 CVPreviewView(jd: effectiveJD ?? "", jobId: job.jobId, profile: profile, result: result,
                               fileName: resumeFileName(title: job.title, company: job.company, location: job.location),
-                              canEdit: !isApplied)
+                              canEdit: !isApplied,
+                              region: region)
             }
         }
         .fileImporter(isPresented: $showCVImporter, allowedContentTypes: [.pdf]) { result in
@@ -694,7 +695,7 @@ struct JobDetailView: View {
         cvError = nil
         Task {
             do {
-                let result = try await CVService.generateCV(jd: jd, profile: profile)
+                let result = try await CVService.generateCV(jd: jd, profile: profile, region: region)
                 CVCacheStore.save(result, for: job.jobId)
                 cvResult = result
                 await syncPreparedCV()

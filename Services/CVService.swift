@@ -51,9 +51,11 @@ struct CoverLetterResult: Codable {
 struct CVService {
     private static let baseURL = "https://job-worker.pranavrokade.workers.dev"
 
-    static func generateCV(jd: String, profile: String = "spencer") async throws -> CVResult {
-        struct Body: Encodable { let jd: String; let profile: String }
-        let data = try await post(path: "/api/cv", body: Body(jd: jd, profile: profile))
+    /// region is the job's market ("uk", "us", "ww"): only UK CVs say "I have the right to work in the UK".
+    /// nil (a pasted JD) keeps the line.
+    static func generateCV(jd: String, profile: String = "spencer", region: String? = nil) async throws -> CVResult {
+        struct Body: Encodable { let jd: String; let profile: String; let region: String? }
+        let data = try await post(path: "/api/cv", body: Body(jd: jd, profile: profile, region: region))
         guard
             let decoded = try? JSONDecoder().decode(CVGenerateResponse.self, from: data),
             let pdfData = Data(base64Encoded: decoded.pdf)
@@ -61,9 +63,9 @@ struct CVService {
         return CVResult(latex: decoded.latex, pdfData: pdfData, decisions: decoded.decisions, pools: decoded.pools)
     }
 
-    static func rebuild(decisions: CVDecisions, jd: String, profile: String = "spencer", summaryDegree: String? = nil, summaryEducationLine: String? = nil, jobTitles: [JobTitleOverride]? = nil) async throws -> (latex: String, pdfData: Data) {
-        struct Body: Encodable { let decisions: CVDecisions; let jd: String; let profile: String; let summaryDegree: String?; let summaryEducationLine: String?; let jobTitles: [JobTitleOverride]? }
-        let data = try await post(path: "/api/cv-rebuild", body: Body(decisions: decisions, jd: jd, profile: profile, summaryDegree: summaryDegree, summaryEducationLine: summaryEducationLine, jobTitles: jobTitles))
+    static func rebuild(decisions: CVDecisions, jd: String, profile: String = "spencer", summaryDegree: String? = nil, summaryEducationLine: String? = nil, jobTitles: [JobTitleOverride]? = nil, region: String? = nil) async throws -> (latex: String, pdfData: Data) {
+        struct Body: Encodable { let decisions: CVDecisions; let jd: String; let profile: String; let summaryDegree: String?; let summaryEducationLine: String?; let jobTitles: [JobTitleOverride]?; let region: String? }
+        let data = try await post(path: "/api/cv-rebuild", body: Body(decisions: decisions, jd: jd, profile: profile, summaryDegree: summaryDegree, summaryEducationLine: summaryEducationLine, jobTitles: jobTitles, region: region))
         guard
             let decoded = try? JSONDecoder().decode(CVRebuildResponse.self, from: data),
             let pdfData = Data(base64Encoded: decoded.pdf)

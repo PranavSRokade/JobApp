@@ -8,6 +8,7 @@ struct CVEditorView: View {
     let jd: String
     let jobId: Int
     let profile: String
+    var region: String? = nil
     var onRebuild: (String, Data, CVDecisions) -> Void
 
     @State private var isRebuilding = false
@@ -362,7 +363,8 @@ struct CVEditorView: View {
                 decisions: decisions, jd: jd, profile: profile,
                 summaryDegree: override.isEmpty || override == defaultSummaryDegree ? nil : override,
                 summaryEducationLine: lineOverride.isEmpty || lineOverride == defaultEducationLine ? nil : lineOverride,
-                jobTitles: titleOverrides.isEmpty ? nil : titleOverrides
+                jobTitles: titleOverrides.isEmpty ? nil : titleOverrides,
+                region: region
             )
             let updated = CVResult(latex: latex, pdfData: pdfData, decisions: decisions, pools: pools)
             CVCacheStore.save(updated, for: jobId)
